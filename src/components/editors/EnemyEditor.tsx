@@ -3,6 +3,7 @@ import { useGameStore } from '../../store';
 import { EnemyDef } from '../../types';
 import { Plus, Trash2 } from 'lucide-react';
 import VectorPathEditor from './VectorPathEditor';
+import ParticleConfigEditor from './ParticleConfigEditor';
 
 export default function EnemyEditor() {
   const { gameData, updateEnemy, addEnemy, deleteEnemy } = useGameStore();
@@ -182,6 +183,15 @@ export default function EnemyEditor() {
                   value={selectedEnemy.scoreValue}
                   onChange={e => updateEnemy({ ...selectedEnemy, scoreValue: Number(e.target.value) })}
                   className="w-full bg-zinc-900 border border-zinc-800 rounded px-3 py-2 text-sm focus:outline-none focus:border-emerald-500"
+                />
+              </div>
+
+              <div className="col-span-2">
+                <ParticleConfigEditor 
+                  label="Death Particles"
+                  config={selectedEnemy.deathParticles}
+                  onChange={config => updateEnemy({ ...selectedEnemy, deathParticles: config })}
+                  defaultColor={selectedEnemy.color}
                 />
               </div>
             </div>

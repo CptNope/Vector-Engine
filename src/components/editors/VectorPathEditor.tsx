@@ -371,31 +371,91 @@ export default function VectorPathEditor({ paths, onChange, defaultColor }: Vect
             {currentPaths.map((layer, idx) => (
               <div 
                 key={idx} 
-                className={`flex items-center gap-2 p-2 rounded border ${idx === safeActiveLayer ? 'border-emerald-500/50 bg-emerald-500/10' : 'border-zinc-800 bg-zinc-950'}`}
+                className={`flex flex-col gap-2 p-2 rounded border ${idx === safeActiveLayer ? 'border-emerald-500/50 bg-emerald-500/10' : 'border-zinc-800 bg-zinc-950'}`}
               >
-                <input 
-                  type="color" 
-                  value={layer.color}
-                  onChange={e => {
-                    const newPaths = [...currentPaths];
-                    newPaths[idx] = { ...newPaths[idx], color: e.target.value };
-                    onChange(newPaths);
-                  }}
-                  className="w-6 h-6 rounded cursor-pointer shrink-0 border border-zinc-700"
-                />
-                <button 
-                  className="flex-1 text-left text-sm text-zinc-300 truncate"
-                  onClick={() => setActiveLayer(idx)}
-                >
-                  Layer {idx + 1} {idx === safeActiveLayer && '(Active)'}
-                </button>
-                <button 
-                  onClick={() => removeLayer(idx)}
-                  disabled={currentPaths.length <= 1}
-                  className="p-1 text-zinc-500 hover:text-red-400 disabled:opacity-30"
-                >
-                  <Trash2 size={14} />
-                </button>
+                <div className="flex items-center gap-2">
+                  <input 
+                    type="color" 
+                    value={layer.color}
+                    onChange={e => {
+                      const newPaths = [...currentPaths];
+                      newPaths[idx] = { ...newPaths[idx], color: e.target.value };
+                      onChange(newPaths);
+                    }}
+                    className="w-6 h-6 rounded cursor-pointer shrink-0 border border-zinc-700"
+                  />
+                  <button 
+                    className="flex-1 text-left text-sm text-zinc-300 truncate"
+                    onClick={() => setActiveLayer(idx)}
+                  >
+                    Layer {idx + 1} {idx === safeActiveLayer && '(Active)'}
+                  </button>
+                  <button 
+                    onClick={() => removeLayer(idx)}
+                    disabled={currentPaths.length <= 1}
+                    className="p-1 text-zinc-500 hover:text-red-400 disabled:opacity-30"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+                {idx === safeActiveLayer && (
+                  <div className="grid grid-cols-2 gap-2 mt-2 pt-2 border-t border-zinc-800/50">
+                    <div>
+                      <label className="text-[10px] text-zinc-500 uppercase">Rotation (deg/s)</label>
+                      <input 
+                        type="number" 
+                        value={layer.rotationSpeed || 0}
+                        onChange={e => {
+                          const newPaths = [...currentPaths];
+                          newPaths[idx] = { ...newPaths[idx], rotationSpeed: Number(e.target.value) };
+                          onChange(newPaths);
+                        }}
+                        className="w-full bg-zinc-900 border border-zinc-800 rounded px-2 py-1 text-xs focus:outline-none focus:border-emerald-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] text-zinc-500 uppercase">Pulse Speed (Hz)</label>
+                      <input 
+                        type="number" 
+                        value={layer.pulseSpeed || 0}
+                        onChange={e => {
+                          const newPaths = [...currentPaths];
+                          newPaths[idx] = { ...newPaths[idx], pulseSpeed: Number(e.target.value) };
+                          onChange(newPaths);
+                        }}
+                        className="w-full bg-zinc-900 border border-zinc-800 rounded px-2 py-1 text-xs focus:outline-none focus:border-emerald-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] text-zinc-500 uppercase">Pulse Min</label>
+                      <input 
+                        type="number" 
+                        step="0.1"
+                        value={layer.pulseMin ?? 1}
+                        onChange={e => {
+                          const newPaths = [...currentPaths];
+                          newPaths[idx] = { ...newPaths[idx], pulseMin: Number(e.target.value) };
+                          onChange(newPaths);
+                        }}
+                        className="w-full bg-zinc-900 border border-zinc-800 rounded px-2 py-1 text-xs focus:outline-none focus:border-emerald-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] text-zinc-500 uppercase">Pulse Max</label>
+                      <input 
+                        type="number" 
+                        step="0.1"
+                        value={layer.pulseMax ?? 1}
+                        onChange={e => {
+                          const newPaths = [...currentPaths];
+                          newPaths[idx] = { ...newPaths[idx], pulseMax: Number(e.target.value) };
+                          onChange(newPaths);
+                        }}
+                        className="w-full bg-zinc-900 border border-zinc-800 rounded px-2 py-1 text-xs focus:outline-none focus:border-emerald-500"
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
             ))}
           </div>

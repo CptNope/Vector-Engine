@@ -82,6 +82,21 @@ export default function LevelEditor() {
         
         pathsToDraw.forEach(layer => {
           if (!layer.path) return;
+          
+          ctx.save();
+          
+          const now = performance.now() / 1000;
+          
+          if (layer.rotationSpeed) {
+            ctx.rotate(layer.rotationSpeed * now * (Math.PI / 180));
+          }
+          
+          if (layer.pulseSpeed && layer.pulseMin !== undefined && layer.pulseMax !== undefined) {
+            const range = layer.pulseMax - layer.pulseMin;
+            const scale = layer.pulseMin + (Math.sin(now * layer.pulseSpeed * Math.PI * 2) * 0.5 + 0.5) * range;
+            ctx.scale(scale, scale);
+          }
+          
           const commands = layer.path.split(' ').filter(Boolean);
           ctx.beginPath();
           let i = 0;
@@ -104,6 +119,8 @@ export default function LevelEditor() {
           ctx.fill();
           ctx.strokeStyle = layer.color;
           ctx.stroke();
+          
+          ctx.restore();
         });
       }
       ctx.restore();
@@ -135,6 +152,21 @@ export default function LevelEditor() {
         
         pathsToDraw.forEach(layer => {
           if (!layer.path) return;
+          
+          ctx.save();
+          
+          const now = performance.now() / 1000;
+          
+          if (layer.rotationSpeed) {
+            ctx.rotate(layer.rotationSpeed * now * (Math.PI / 180));
+          }
+          
+          if (layer.pulseSpeed && layer.pulseMin !== undefined && layer.pulseMax !== undefined) {
+            const range = layer.pulseMax - layer.pulseMin;
+            const scale = layer.pulseMin + (Math.sin(now * layer.pulseSpeed * Math.PI * 2) * 0.5 + 0.5) * range;
+            ctx.scale(scale, scale);
+          }
+          
           const commands = layer.path.split(' ').filter(Boolean);
           ctx.beginPath();
           let i = 0;
@@ -157,6 +189,8 @@ export default function LevelEditor() {
           ctx.fill();
           ctx.strokeStyle = layer.color;
           ctx.stroke();
+          
+          ctx.restore();
         });
       }
       ctx.restore();

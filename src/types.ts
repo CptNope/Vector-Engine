@@ -1,8 +1,20 @@
 export type Vector2 = { x: number; y: number };
 
+export type ParticleConfig = {
+  count: number;
+  speed: number;
+  size: number;
+  life: number;
+  color?: string;
+};
+
 export type VectorPath = {
   path: string;
   color: string;
+  rotationSpeed?: number;
+  pulseSpeed?: number;
+  pulseMin?: number;
+  pulseMax?: number;
 };
 
 export type WeaponDef = {
@@ -18,6 +30,7 @@ export type WeaponDef = {
   customPath?: string;
   customPaths?: VectorPath[];
   size: number;
+  hitParticles?: ParticleConfig;
 };
 
 export type EnemyDef = {
@@ -33,6 +46,7 @@ export type EnemyDef = {
   weaponId: string | null;
   aiType: 'chase' | 'patrol' | 'stationary' | 'sine';
   scoreValue: number;
+  deathParticles?: ParticleConfig;
 };
 
 export type ObstacleDef = {
@@ -43,6 +57,7 @@ export type ObstacleDef = {
   customPaths?: VectorPath[];
   size: number;
   color: string;
+  deathParticles?: ParticleConfig;
 };
 
 export type LevelDef = {
@@ -94,6 +109,8 @@ export type GameData = {
     customPath?: string;
     customPaths?: VectorPath[];
     size: number;
+    deathParticles?: ParticleConfig;
+    thrusterParticles?: ParticleConfig;
   };
   startStoryNodeId: string | null;
   startLevelId: string | null;

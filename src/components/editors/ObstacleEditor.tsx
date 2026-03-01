@@ -3,6 +3,7 @@ import { useGameStore } from '../../store';
 import { ObstacleDef } from '../../types';
 import { Plus, Trash2 } from 'lucide-react';
 import VectorPathEditor from './VectorPathEditor';
+import ParticleConfigEditor from './ParticleConfigEditor';
 
 export default function ObstacleEditor() {
   const { gameData, updateObstacle, addObstacle, deleteObstacle } = useGameStore();
@@ -116,6 +117,15 @@ export default function ObstacleEditor() {
                   value={selectedObstacle.size}
                   onChange={e => updateObstacle({ ...selectedObstacle, size: Number(e.target.value) })}
                   className="w-full bg-zinc-900 border border-zinc-800 rounded px-3 py-2 text-sm focus:outline-none focus:border-emerald-500"
+                />
+              </div>
+
+              <div className="col-span-2">
+                <ParticleConfigEditor 
+                  label="Death Particles"
+                  config={selectedObstacle.deathParticles}
+                  onChange={config => updateObstacle({ ...selectedObstacle, deathParticles: config })}
+                  defaultColor={selectedObstacle.color}
                 />
               </div>
             </div>

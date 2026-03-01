@@ -3,6 +3,7 @@ import { useGameStore } from '../../store';
 import { WeaponDef } from '../../types';
 import { Plus, Trash2 } from 'lucide-react';
 import VectorPathEditor from './VectorPathEditor';
+import ParticleConfigEditor from './ParticleConfigEditor';
 
 export default function WeaponEditor() {
   const { gameData, updateWeapon, addWeapon, deleteWeapon } = useGameStore();
@@ -174,6 +175,15 @@ export default function WeaponEditor() {
                   value={selectedWeapon.size}
                   onChange={e => updateWeapon({ ...selectedWeapon, size: Number(e.target.value) })}
                   className="w-full bg-zinc-900 border border-zinc-800 rounded px-3 py-2 text-sm focus:outline-none focus:border-emerald-500"
+                />
+              </div>
+
+              <div className="col-span-2">
+                <ParticleConfigEditor 
+                  label="Hit Particles"
+                  config={selectedWeapon.hitParticles}
+                  onChange={config => updateWeapon({ ...selectedWeapon, hitParticles: config })}
+                  defaultColor={selectedWeapon.color}
                 />
               </div>
             </div>

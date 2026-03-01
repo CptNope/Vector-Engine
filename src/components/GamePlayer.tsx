@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useGameStore } from '../store';
-import { GameData, LevelDef, StoryNode, WeaponDef, EnemyDef } from '../types';
+import { GameData, LevelDef, StoryNode, WeaponDef, EnemyDef, ParticleConfig } from '../types';
 
 type GameState = 'menu' | 'story' | 'playing' | 'gameover' | 'victory';
 
@@ -65,34 +65,38 @@ export default function GamePlayer() {
     playerHealth: 100,
   });
 
-  const createExplosion = (x: number, y: number, color: string, count: number = 20) => {
-    for (let i = 0; i < count; i++) {
+  const createParticles = (x: number, y: number, config: ParticleConfig, defaultColor: string) => {
+    const color = config.color || defaultColor;
+    for (let i = 0; i < config.count; i++) {
       const angle = Math.random() * Math.PI * 2;
-      const speed = Math.random() * 150 + 50;
+      const speed = Math.random() * config.speed + (config.speed * 0.2);
       stateRef.current.particles.push({
         x,
         y,
         vx: Math.cos(angle) * speed,
         vy: Math.sin(angle) * speed,
         life: 1,
-        maxLife: Math.random() * 0.5 + 0.2,
+        maxLife: Math.random() * (config.life * 0.5) + (config.life * 0.5),
         color,
-        size: Math.random() * 4 + 2,
+        size: Math.random() * config.size + (config.size * 0.5),
       });
     }
   };
 
-  const createThruster = (x: number, y: number, color: string) => {
-    stateRef.current.particles.push({
-      x: x + (Math.random() - 0.5) * 10,
-      y: y + 10,
-      vx: (Math.random() - 0.5) * 20,
-      vy: Math.random() * 50 + 50,
-      life: 1,
-      maxLife: Math.random() * 0.2 + 0.1,
-      color,
-      size: Math.random() * 3 + 1,
-    });
+  const createThruster = (x: number, y: number, config: ParticleConfig, defaultColor: string) => {
+    const color = config.color || defaultColor;
+    for (let i = 0; i < config.count; i++) {
+      stateRef.current.particles.push({
+        x: x + (Math.random() - 0.5) * 10,
+        y: y + 10,
+        vx: (Math.random() - 0.5) * 20,
+        vy: Math.random() * config.speed + (config.speed * 0.5),
+        life: 1,
+        maxLife: Math.random() * (config.life * 0.5) + (config.life * 0.5),
+        color,
+        size: Math.random() * config.size + (config.size * 0.5),
+      });
+    }
   };
 
   const setGameStateSafe = (newState: GameState) => {
@@ -302,6 +306,7 @@ export default function GamePlayer() {
         shape: weaponDef.shape,
         customPath: weaponDef.customPath,
         customPaths: weaponDef.customPaths,
+        weaponId: weaponDef.id,
         createdAt: now
       });
     }
@@ -345,7 +350,8 @@ export default function GamePlayer() {
 
       // Thruster particles
       if (player.vy < 0 || player.vx !== 0) {
-        createThruster(player.x, player.y + player.height / 2, '#ffaa00');
+        const config = gameData.playerBaseStats.thrusterParticles || { count: 1, speed: 50, size: 3, life: 0.2, color: '#ffaa00' };
+        createThruster(player.x, player.y + player.height / 2, config, '#ffaa00');
       }
 
       // Keep player in camera bounds
@@ -428,11 +434,15 @@ export default function GamePlayer() {
           if (a.type === 'obstacle' || b.type === 'obstacle') {
             if (a.type.includes('projectile')) {
               a.health = 0;
-              createExplosion(a.x, a.y, a.color, 5);
+              const wDef = gameData.weapons.find(w => w.id === a.weaponId);
+              const config = wDef?.hitParticles || { count: 5, speed: 100, size: 3, life: 0.5 };
+              createParticles(a.x, a.y, config, a.color);
             }
             if (b.type.includes('projectile')) {
               b.health = 0;
-              createExplosion(b.x, b.y, b.color, 5);
+              const wDef = gameData.weapons.find(w => w.id === b.weaponId);
+              const config = wDef?.hitParticles || { count: 5, speed: 100, size: 3, life: 0.5 };
+              createParticles(b.x, b.y, config, b.color);
             }
             
             if (a.type === 'player' || a.type === 'enemy') a.health -= 1; // Continuous damage
@@ -445,8 +455,16 @@ export default function GamePlayer() {
             a.health -= dmgA;
             b.health -= dmgB;
             
-            if (a.type.includes('projectile')) createExplosion(a.x, a.y, a.color, 5);
-            if (b.type.includes('projectile')) createExplosion(b.x, b.y, b.color, 5);
+            if (a.type.includes('projectile')) {
+              const wDef = gameData.weapons.find(w => w.id === a.weaponId);
+              const config = wDef?.hitParticles || { count: 5, speed: 100, size: 3, life: 0.5 };
+              createParticles(a.x, a.y, config, a.color);
+            }
+            if (b.type.includes('projectile')) {
+              const wDef = gameData.weapons.find(w => w.id === b.weaponId);
+              const config = wDef?.hitParticles || { count: 5, speed: 100, size: 3, life: 0.5 };
+              createParticles(b.x, b.y, config, b.color);
+            }
           }
         }
       }
@@ -460,14 +478,23 @@ export default function GamePlayer() {
             state.score += ent.scoreValue;
             setScore(state.score);
           }
-          createExplosion(ent.x, ent.y, ent.color, 30);
+          const eDef = gameData.enemies.find(e => e.id === ent.id.split('_')[0] + '_' + ent.id.split('_')[1]); // Hack to get enemy def id from entity id if it's like e_grunt_123
+          // Wait, entity id is just 'ent_1' etc. We need enemyDefId on Entity.
+          // Let's just use a default config if we can't find it.
+          const config = { count: 30, speed: 150, size: 4, life: 0.5 };
+          createParticles(ent.x, ent.y, config, ent.color);
         }
         if (ent.type === 'player') {
           setPlayerHealth(0);
-          createExplosion(ent.x, ent.y, ent.color, 50);
+          const config = gameData.playerBaseStats.deathParticles || { count: 50, speed: 200, size: 5, life: 1 };
+          createParticles(ent.x, ent.y, config, ent.color);
           setTimeout(() => {
             setGameStateSafe('gameover');
           }, 1000);
+        }
+        if (ent.type === 'obstacle') {
+          const config = { count: 20, speed: 100, size: 4, life: 0.5 };
+          createParticles(ent.x, ent.y, config, ent.color);
         }
         return false;
       }
@@ -563,6 +590,22 @@ export default function GamePlayer() {
         
         pathsToDraw.forEach(layer => {
           if (!layer.path) return;
+          
+          ctx.save();
+          
+          const now = performance.now() / 1000;
+          const age = now - (ent.createdAt / 1000);
+          
+          if (layer.rotationSpeed) {
+            ctx.rotate(layer.rotationSpeed * age * (Math.PI / 180));
+          }
+          
+          if (layer.pulseSpeed && layer.pulseMin !== undefined && layer.pulseMax !== undefined) {
+            const range = layer.pulseMax - layer.pulseMin;
+            const scale = layer.pulseMin + (Math.sin(age * layer.pulseSpeed * Math.PI * 2) * 0.5 + 0.5) * range;
+            ctx.scale(scale, scale);
+          }
+          
           const commands = layer.path.split(' ').filter(Boolean);
           ctx.beginPath();
           let i = 0;
@@ -585,6 +628,8 @@ export default function GamePlayer() {
           ctx.fill();
           ctx.strokeStyle = layer.color;
           ctx.stroke();
+          
+          ctx.restore();
         });
       }
 

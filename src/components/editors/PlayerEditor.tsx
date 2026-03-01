@@ -1,5 +1,6 @@
 import { useGameStore } from '../../store';
 import VectorPathEditor from './VectorPathEditor';
+import ParticleConfigEditor from './ParticleConfigEditor';
 
 export default function PlayerEditor() {
   const { gameData, updatePlayerStats } = useGameStore();
@@ -96,6 +97,21 @@ export default function PlayerEditor() {
               value={stats.size}
               onChange={e => updatePlayerStats({ size: Number(e.target.value) })}
               className="w-full bg-zinc-900 border border-zinc-800 rounded px-3 py-2 text-sm focus:outline-none focus:border-emerald-500"
+            />
+          </div>
+
+          <div className="col-span-2 space-y-4">
+            <ParticleConfigEditor 
+              label="Thruster Particles"
+              config={stats.thrusterParticles}
+              onChange={config => updatePlayerStats({ thrusterParticles: config })}
+              defaultColor="#ffaa00"
+            />
+            <ParticleConfigEditor 
+              label="Death Particles"
+              config={stats.deathParticles}
+              onChange={config => updatePlayerStats({ deathParticles: config })}
+              defaultColor={stats.color}
             />
           </div>
         </div>
