@@ -6,9 +6,10 @@ import EnemyEditor from './components/editors/EnemyEditor';
 import LevelEditor from './components/editors/LevelEditor';
 import StoryEditor from './components/editors/StoryEditor';
 import PlayerEditor from './components/editors/PlayerEditor';
+import ObstacleEditor from './components/editors/ObstacleEditor';
 import GamePlayer from './components/GamePlayer';
 
-type ViewMode = 'play' | 'weapons' | 'enemies' | 'levels' | 'story' | 'player';
+type ViewMode = 'play' | 'weapons' | 'enemies' | 'levels' | 'story' | 'player' | 'obstacles';
 
 export default function App() {
   const [viewMode, setViewMode] = useState<ViewMode>('play');
@@ -58,6 +59,7 @@ export default function App() {
           <NavItem icon={<PenTool size={18} />} label="Levels" active={viewMode === 'levels'} onClick={() => setViewMode('levels')} />
           <NavItem icon={<Skull size={18} />} label="Enemies" active={viewMode === 'enemies'} onClick={() => setViewMode('enemies')} />
           <NavItem icon={<Crosshair size={18} />} label="Weapons" active={viewMode === 'weapons'} onClick={() => setViewMode('weapons')} />
+          <NavItem icon={<PenTool size={18} />} label="Obstacles" active={viewMode === 'obstacles'} onClick={() => setViewMode('obstacles')} />
           <NavItem icon={<User size={18} />} label="Player Stats" active={viewMode === 'player'} onClick={() => setViewMode('player')} />
         </nav>
 
@@ -80,6 +82,7 @@ export default function App() {
         {viewMode === 'levels' && <LevelEditor />}
         {viewMode === 'story' && <StoryEditor />}
         {viewMode === 'player' && <PlayerEditor />}
+        {viewMode === 'obstacles' && <ObstacleEditor />}
       </div>
     </div>
   );

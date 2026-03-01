@@ -7,8 +7,10 @@ export default function LevelEditor() {
   const { gameData, updateLevel, addLevel, deleteLevel } = useGameStore();
   const [selectedId, setSelectedId] = useState<string | null>(gameData.levels[0]?.id || null);
   const [selectedEnemyDefId, setSelectedEnemyDefId] = useState<string>(gameData.enemies[0]?.id || '');
-  const [mode, setMode] = useState<'select' | 'place'>('select');
+  const [selectedObstacleDefId, setSelectedObstacleDefId] = useState<string>(gameData.obstacles[0]?.id || '');
+  const [mode, setMode] = useState<'select' | 'place_enemy' | 'place_obstacle'>('select');
   const [selectedEntityId, setSelectedEntityId] = useState<string | null>(null);
+  const [selectedObstacleId, setSelectedObstacleId] = useState<string | null>(null);
 
   const selectedLevel = gameData.levels.find(l => l.id === selectedId);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -23,6 +25,7 @@ export default function LevelEditor() {
       entities: [],
       nextLevelId: null,
       nextStoryNodeId: null,
+      obstacles: [],
     };
     addLevel(newLevel);
     setSelectedId(newLevel.id);
@@ -74,11 +77,78 @@ export default function LevelEditor() {
         ctx.lineTo(def.size, def.size);
         ctx.lineTo(-def.size, def.size);
         ctx.fill();
+      } else if (def.shape === 'custom' && def.customPath) {
+        const commands = def.customPath.split(' ').filter(Boolean);
+        ctx.beginPath();
+        let i = 0;
+        while (i < commands.length) {
+          const cmd = commands[i];
+          if (cmd === 'M') {
+            ctx.moveTo(parseFloat(commands[i+1]) * def.size, parseFloat(commands[i+2]) * def.size);
+            i += 3;
+          } else if (cmd === 'L') {
+            ctx.lineTo(parseFloat(commands[i+1]) * def.size, parseFloat(commands[i+2]) * def.size);
+            i += 3;
+          } else if (cmd === 'Z') {
+            ctx.closePath();
+            i += 1;
+          } else {
+            i += 1;
+          }
+        }
+        ctx.fill();
+        ctx.stroke();
       }
       ctx.restore();
     });
 
-  }, [selectedLevel, gameData.enemies, selectedEntityId]);
+    // Draw obstacles
+    selectedLevel.obstacles?.forEach(obs => {
+      const def = gameData.obstacles.find(o => o.id === obs.obstacleDefId);
+      if (!def) return;
+
+      ctx.save();
+      ctx.translate(obs.x, obs.y);
+      
+      if (selectedObstacleId === obs.id) {
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(-def.size - 2, -def.size - 2, def.size * 2 + 4, def.size * 2 + 4);
+      }
+
+      ctx.fillStyle = def.color;
+      if (def.shape === 'square') {
+        ctx.fillRect(-def.size, -def.size, def.size * 2, def.size * 2);
+      } else if (def.shape === 'circle') {
+        ctx.beginPath();
+        ctx.arc(0, 0, def.size, 0, Math.PI * 2);
+        ctx.fill();
+      } else if (def.shape === 'custom' && def.customPath) {
+        const commands = def.customPath.split(' ').filter(Boolean);
+        ctx.beginPath();
+        let i = 0;
+        while (i < commands.length) {
+          const cmd = commands[i];
+          if (cmd === 'M') {
+            ctx.moveTo(parseFloat(commands[i+1]) * def.size, parseFloat(commands[i+2]) * def.size);
+            i += 3;
+          } else if (cmd === 'L') {
+            ctx.lineTo(parseFloat(commands[i+1]) * def.size, parseFloat(commands[i+2]) * def.size);
+            i += 3;
+          } else if (cmd === 'Z') {
+            ctx.closePath();
+            i += 1;
+          } else {
+            i += 1;
+          }
+        }
+        ctx.fill();
+        ctx.stroke();
+      }
+      ctx.restore();
+    });
+
+  }, [selectedLevel, gameData.enemies, gameData.obstacles, selectedEntityId, selectedObstacleId]);
 
   const handleCanvasClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
     if (!selectedLevel) return;
@@ -88,7 +158,7 @@ export default function LevelEditor() {
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
 
-    if (mode === 'place') {
+    if (mode === 'place_enemy') {
       if (!selectedEnemyDefId) return;
       const newEntity = {
         id: `ent_${Date.now()}`,
@@ -100,24 +170,63 @@ export default function LevelEditor() {
         ...selectedLevel,
         entities: [...selectedLevel.entities, newEntity]
       });
+    } else if (mode === 'place_obstacle') {
+      if (!selectedObstacleDefId) return;
+      const newObstacle = {
+        id: `obs_${Date.now()}`,
+        obstacleDefId: selectedObstacleDefId,
+        x,
+        y
+      };
+      updateLevel({
+        ...selectedLevel,
+        obstacles: [...(selectedLevel.obstacles || []), newObstacle]
+      });
     } else if (mode === 'select') {
       // Find clicked entity
-      const clicked = selectedLevel.entities.slice().reverse().find(ent => {
+      const clickedEnt = selectedLevel.entities.slice().reverse().find(ent => {
         const def = gameData.enemies.find(e => e.id === ent.enemyDefId);
         if (!def) return false;
         return Math.abs(ent.x - x) < def.size && Math.abs(ent.y - y) < def.size;
       });
-      setSelectedEntityId(clicked?.id || null);
+      if (clickedEnt) {
+        setSelectedEntityId(clickedEnt.id);
+        setSelectedObstacleId(null);
+        return;
+      }
+
+      // Find clicked obstacle
+      const clickedObs = selectedLevel.obstacles?.slice().reverse().find(obs => {
+        const def = gameData.obstacles.find(o => o.id === obs.obstacleDefId);
+        if (!def) return false;
+        return Math.abs(obs.x - x) < def.size && Math.abs(obs.y - y) < def.size;
+      });
+      if (clickedObs) {
+        setSelectedObstacleId(clickedObs.id);
+        setSelectedEntityId(null);
+        return;
+      }
+
+      setSelectedEntityId(null);
+      setSelectedObstacleId(null);
     }
   };
 
-  const handleDeleteEntity = () => {
-    if (!selectedLevel || !selectedEntityId) return;
-    updateLevel({
-      ...selectedLevel,
-      entities: selectedLevel.entities.filter(e => e.id !== selectedEntityId)
-    });
-    setSelectedEntityId(null);
+  const handleDeleteSelected = () => {
+    if (!selectedLevel) return;
+    if (selectedEntityId) {
+      updateLevel({
+        ...selectedLevel,
+        entities: selectedLevel.entities.filter(e => e.id !== selectedEntityId)
+      });
+      setSelectedEntityId(null);
+    } else if (selectedObstacleId) {
+      updateLevel({
+        ...selectedLevel,
+        obstacles: selectedLevel.obstacles.filter(o => o.id !== selectedObstacleId)
+      });
+      setSelectedObstacleId(null);
+    }
   };
 
   return (
@@ -193,14 +302,20 @@ export default function LevelEditor() {
                     <MousePointer2 size={16} /> Select
                   </button>
                   <button 
-                    onClick={() => setMode('place')}
-                    className={`w-full flex items-center gap-2 px-3 py-2 rounded text-sm ${mode === 'place' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-zinc-800 text-zinc-300'}`}
+                    onClick={() => setMode('place_enemy')}
+                    className={`w-full flex items-center gap-2 px-3 py-2 rounded text-sm ${mode === 'place_enemy' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-zinc-800 text-zinc-300'}`}
                   >
                     <Plus size={16} /> Place Enemy
                   </button>
+                  <button 
+                    onClick={() => setMode('place_obstacle')}
+                    className={`w-full flex items-center gap-2 px-3 py-2 rounded text-sm ${mode === 'place_obstacle' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-zinc-800 text-zinc-300'}`}
+                  >
+                    <Plus size={16} /> Place Obstacle
+                  </button>
                 </div>
 
-                {mode === 'place' && (
+                {mode === 'place_enemy' && (
                   <div className="space-y-2">
                     <h3 className="text-xs font-semibold text-zinc-500 uppercase">Select Enemy</h3>
                     <select 
@@ -215,10 +330,25 @@ export default function LevelEditor() {
                   </div>
                 )}
 
-                {mode === 'select' && selectedEntityId && (
+                {mode === 'place_obstacle' && (
+                  <div className="space-y-2">
+                    <h3 className="text-xs font-semibold text-zinc-500 uppercase">Select Obstacle</h3>
+                    <select 
+                      value={selectedObstacleDefId}
+                      onChange={e => setSelectedObstacleDefId(e.target.value)}
+                      className="w-full bg-zinc-800 border border-zinc-700 rounded px-2 py-2 text-sm text-zinc-300"
+                    >
+                      {gameData.obstacles.map(o => (
+                        <option key={o.id} value={o.id}>{o.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                {mode === 'select' && (selectedEntityId || selectedObstacleId) && (
                   <div className="space-y-2 mt-auto">
                     <button 
-                      onClick={handleDeleteEntity}
+                      onClick={handleDeleteSelected}
                       className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded text-sm bg-red-500/10 text-red-400 hover:bg-red-500/20"
                     >
                       <Trash2 size={16} /> Delete Selected

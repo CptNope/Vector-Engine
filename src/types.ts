@@ -9,7 +9,8 @@ export type WeaponDef = {
   color: string;
   projectileCount: number;
   spreadAngle: number;
-  shape: 'circle' | 'line' | 'square';
+  shape: 'circle' | 'line' | 'square' | 'custom';
+  customPath?: string;
   size: number;
 };
 
@@ -19,11 +20,21 @@ export type EnemyDef = {
   health: number;
   speed: number;
   color: string;
-  shape: 'circle' | 'square' | 'triangle';
+  shape: 'circle' | 'square' | 'triangle' | 'custom';
+  customPath?: string;
   size: number;
   weaponId: string | null;
   aiType: 'chase' | 'patrol' | 'stationary' | 'sine';
   scoreValue: number;
+};
+
+export type ObstacleDef = {
+  id: string;
+  name: string;
+  shape: 'square' | 'circle' | 'custom';
+  customPath?: string;
+  size: number;
+  color: string;
 };
 
 export type LevelDef = {
@@ -35,6 +46,12 @@ export type LevelDef = {
   entities: {
     id: string;
     enemyDefId: string;
+    x: number;
+    y: number;
+  }[];
+  obstacles: {
+    id: string;
+    obstacleDefId: string;
     x: number;
     y: number;
   }[];
@@ -57,6 +74,7 @@ export type StoryNode = {
 export type GameData = {
   weapons: WeaponDef[];
   enemies: EnemyDef[];
+  obstacles: ObstacleDef[];
   levels: LevelDef[];
   storyNodes: StoryNode[];
   playerBaseStats: {
@@ -64,7 +82,8 @@ export type GameData = {
     speed: number;
     color: string;
     startingWeaponId: string | null;
-    shape: 'triangle' | 'ship';
+    shape: 'triangle' | 'ship' | 'custom';
+    customPath?: string;
     size: number;
   };
   startStoryNodeId: string | null;

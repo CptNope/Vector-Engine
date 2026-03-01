@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useGameStore } from '../../store';
 import { EnemyDef } from '../../types';
 import { Plus, Trash2 } from 'lucide-react';
+import VectorPathEditor from './VectorPathEditor';
 
 export default function EnemyEditor() {
   const { gameData, updateEnemy, addEnemy, deleteEnemy } = useGameStore();
@@ -122,8 +123,19 @@ export default function EnemyEditor() {
                   <option value="square">Square</option>
                   <option value="circle">Circle</option>
                   <option value="triangle">Triangle</option>
+                  <option value="custom">Custom Vector</option>
                 </select>
               </div>
+
+              {selectedEnemy.shape === 'custom' && (
+                <div className="col-span-2">
+                  <VectorPathEditor 
+                    path={selectedEnemy.customPath || ''}
+                    onChange={path => updateEnemy({ ...selectedEnemy, customPath: path })}
+                    color={selectedEnemy.color}
+                  />
+                </div>
+              )}
 
               <div className="space-y-1">
                 <label className="text-xs text-zinc-500 uppercase font-semibold">Size</label>
@@ -175,22 +187,24 @@ export default function EnemyEditor() {
             </div>
             
             {/* Preview */}
-            <div className="mt-8 p-4 border border-zinc-800 rounded-lg bg-zinc-900/50">
-              <h3 className="text-sm font-semibold text-zinc-400 mb-4">Preview</h3>
-              <div className="h-32 bg-zinc-950 rounded flex items-center justify-center">
-                <div 
-                  style={{
-                    width: selectedEnemy.shape === 'circle' ? selectedEnemy.size * 2 : selectedEnemy.shape === 'triangle' ? 0 : selectedEnemy.size * 2,
-                    height: selectedEnemy.shape === 'circle' ? selectedEnemy.size * 2 : selectedEnemy.shape === 'triangle' ? 0 : selectedEnemy.size * 2,
-                    backgroundColor: selectedEnemy.shape === 'triangle' ? 'transparent' : selectedEnemy.color,
-                    borderRadius: selectedEnemy.shape === 'circle' ? '50%' : '0',
-                    borderLeft: selectedEnemy.shape === 'triangle' ? `${selectedEnemy.size}px solid transparent` : 'none',
-                    borderRight: selectedEnemy.shape === 'triangle' ? `${selectedEnemy.size}px solid transparent` : 'none',
-                    borderBottom: selectedEnemy.shape === 'triangle' ? `${selectedEnemy.size * 2}px solid ${selectedEnemy.color}` : 'none',
-                  }}
-                />
+            {selectedEnemy.shape !== 'custom' && (
+              <div className="mt-8 p-4 border border-zinc-800 rounded-lg bg-zinc-900/50">
+                <h3 className="text-sm font-semibold text-zinc-400 mb-4">Preview</h3>
+                <div className="h-32 bg-zinc-950 rounded flex items-center justify-center">
+                  <div 
+                    style={{
+                      width: selectedEnemy.shape === 'circle' ? selectedEnemy.size * 2 : selectedEnemy.shape === 'triangle' ? 0 : selectedEnemy.size * 2,
+                      height: selectedEnemy.shape === 'circle' ? selectedEnemy.size * 2 : selectedEnemy.shape === 'triangle' ? 0 : selectedEnemy.size * 2,
+                      backgroundColor: selectedEnemy.shape === 'triangle' ? 'transparent' : selectedEnemy.color,
+                      borderRadius: selectedEnemy.shape === 'circle' ? '50%' : '0',
+                      borderLeft: selectedEnemy.shape === 'triangle' ? `${selectedEnemy.size}px solid transparent` : 'none',
+                      borderRight: selectedEnemy.shape === 'triangle' ? `${selectedEnemy.size}px solid transparent` : 'none',
+                      borderBottom: selectedEnemy.shape === 'triangle' ? `${selectedEnemy.size * 2}px solid ${selectedEnemy.color}` : 'none',
+                    }}
+                  />
+                </div>
               </div>
-            </div>
+            )}
 
           </div>
         ) : (

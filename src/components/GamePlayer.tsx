@@ -15,9 +15,10 @@ type Entity = {
   height: number;
   health: number;
   maxHealth: number;
-  type: 'player' | 'enemy' | 'player_projectile' | 'enemy_projectile';
+  type: 'player' | 'enemy' | 'player_projectile' | 'enemy_projectile' | 'obstacle';
   color: string;
   shape: string;
+  customPath?: string;
   weaponId?: string | null;
   aiType?: string;
   scoreValue?: number;
@@ -39,6 +40,7 @@ export default function GamePlayer() {
   
   // Game State Refs (to avoid dependency cycles in requestAnimationFrame)
   const stateRef = useRef({
+    gameState: 'menu' as GameState,
     entities: [] as Entity[],
     keys: {} as Record<string, boolean>,
     lastTime: 0,
@@ -50,6 +52,11 @@ export default function GamePlayer() {
     playerHealth: 100,
   });
 
+  const setGameStateSafe = (newState: GameState) => {
+    stateRef.current.gameState = newState;
+    setGameState(newState);
+  };
+
   // Start Game
   const startGame = () => {
     setScore(0);
@@ -59,7 +66,7 @@ export default function GamePlayer() {
     
     if (gameData.startStoryNodeId) {
       setCurrentStoryNodeId(gameData.startStoryNodeId);
-      setGameState('story');
+      setGameStateSafe('story');
     } else if (gameData.startLevelId || gameData.levels.length > 0) {
       startLevel(gameData.startLevelId || gameData.levels[0].id);
     } else {
@@ -70,12 +77,12 @@ export default function GamePlayer() {
   const startLevel = (levelId: string) => {
     const level = gameData.levels.find(l => l.id === levelId);
     if (!level) {
-      setGameState('victory');
+      setGameStateSafe('victory');
       return;
     }
     
     setCurrentLevelId(levelId);
-    setGameState('playing');
+    setGameStateSafe('playing');
     
     // Initialize level state
     stateRef.current.level = level;
@@ -95,6 +102,7 @@ export default function GamePlayer() {
       type: 'player',
       color: gameData.playerBaseStats.color,
       shape: gameData.playerBaseStats.shape,
+      customPath: gameData.playerBaseStats.customPath,
       weaponId: gameData.playerBaseStats.startingWeaponId,
       createdAt: Date.now()
     };
@@ -115,6 +123,7 @@ export default function GamePlayer() {
         type: 'enemy',
         color: def.color,
         shape: def.shape,
+        customPath: def.customPath,
         weaponId: def.weaponId,
         aiType: def.aiType,
         scoreValue: def.scoreValue,
@@ -122,7 +131,28 @@ export default function GamePlayer() {
       };
     }).filter(Boolean) as Entity[];
 
-    stateRef.current.entities = [player, ...enemies];
+    // Spawn Obstacles
+    const obstacles: Entity[] = (level.obstacles || []).map(obs => {
+      const def = gameData.obstacles.find(o => o.id === obs.obstacleDefId);
+      if (!def) return null;
+      return {
+        id: obs.id,
+        x: obs.x,
+        y: obs.y,
+        vx: 0, vy: 0,
+        width: def.size * 2,
+        height: def.size * 2,
+        health: 999999, // indestructible
+        maxHealth: 999999,
+        type: 'obstacle',
+        color: def.color,
+        shape: def.shape,
+        customPath: def.customPath,
+        createdAt: Date.now()
+      };
+    }).filter(Boolean) as Entity[];
+
+    stateRef.current.entities = [player, ...enemies, ...obstacles];
     stateRef.current.lastTime = performance.now();
     
     if (requestRef.current) cancelAnimationFrame(requestRef.current);
@@ -143,7 +173,7 @@ export default function GamePlayer() {
 
   // Game Loop
   const gameLoop = (time: number) => {
-    if (gameState !== 'playing') return;
+    if (stateRef.current.gameState !== 'playing') return;
     
     const dt = (time - stateRef.current.lastTime) / 1000;
     stateRef.current.lastTime = time;
@@ -152,7 +182,7 @@ export default function GamePlayer() {
     draw();
     
     if (stateRef.current.playerHealth <= 0) {
-      setGameState('gameover');
+      setGameStateSafe('gameover');
       return;
     }
     
@@ -178,11 +208,11 @@ export default function GamePlayer() {
     
     if (level.nextStoryNodeId) {
       setCurrentStoryNodeId(level.nextStoryNodeId);
-      setGameState('story');
+      setGameStateSafe('story');
     } else if (level.nextLevelId) {
       startLevel(level.nextLevelId);
     } else {
-      setGameState('victory');
+      setGameStateSafe('victory');
     }
   };
 
@@ -223,6 +253,7 @@ export default function GamePlayer() {
         type: isPlayer ? 'player_projectile' : 'enemy_projectile',
         color: weaponDef.color,
         shape: weaponDef.shape,
+        customPath: weaponDef.customPath,
         createdAt: now
       });
     }
@@ -294,12 +325,23 @@ export default function GamePlayer() {
         } else if (ent.aiType === 'sine') {
           ent.x += Math.sin(performance.now() / 500) * 2;
           ent.y += 20 * dt; // move down slowly
+        } else if (ent.aiType === 'patrol') {
+          // simple patrol left and right
+          if (ent.vx === 0) ent.vx = 50;
+          if (ent.x > state.cameraX + 700) ent.vx = -50;
+          if (ent.x < state.cameraX + 100) ent.vx = 50;
+          ent.y += 10 * dt; // move down very slowly
         }
 
         // Enemy Fire
-        if (ent.weaponId && Math.random() < 0.01) {
-          const weapon = gameData.weapons.find(w => w.id === ent.weaponId);
-          if (weapon) fireWeapon(ent, weapon, false);
+        if (ent.weaponId) {
+           // only fire if on screen
+           if (ent.y > state.cameraY && ent.y < state.cameraY + 600 && ent.x > state.cameraX && ent.x < state.cameraX + 800) {
+              if (Math.random() < 0.01) {
+                const weapon = gameData.weapons.find(w => w.id === ent.weaponId);
+                if (weapon) fireWeapon(ent, weapon, false);
+              }
+           }
         }
       }
     });
@@ -313,17 +355,29 @@ export default function GamePlayer() {
         // Skip same type collisions
         if ((a.type.includes('player') && b.type.includes('player')) ||
             (a.type.includes('enemy') && b.type.includes('enemy'))) continue;
+        
+        // Skip obstacle-obstacle collisions
+        if (a.type === 'obstacle' && b.type === 'obstacle') continue;
 
         const hit = Math.abs(a.x - b.x) < (a.width + b.width) / 2 &&
                     Math.abs(a.y - b.y) < (a.height + b.height) / 2;
 
         if (hit) {
-          // Simple damage
-          const dmgA = b.type.includes('projectile') ? 10 : 20;
-          const dmgB = a.type.includes('projectile') ? 10 : 20;
-          
-          a.health -= dmgA;
-          b.health -= dmgB;
+          // Obstacles block projectiles and damage players/enemies
+          if (a.type === 'obstacle' || b.type === 'obstacle') {
+            if (a.type.includes('projectile')) a.health = 0;
+            if (b.type.includes('projectile')) b.health = 0;
+            
+            if (a.type === 'player' || a.type === 'enemy') a.health -= 1; // Continuous damage
+            if (b.type === 'player' || b.type === 'enemy') b.health -= 1;
+          } else {
+            // Simple damage
+            const dmgA = b.type.includes('projectile') ? 10 : 20;
+            const dmgB = a.type.includes('projectile') ? 10 : 20;
+            
+            a.health -= dmgA;
+            b.health -= dmgB;
+          }
         }
       }
     }
@@ -417,6 +471,28 @@ export default function GamePlayer() {
         ctx.moveTo(0, -halfH);
         ctx.lineTo(0, halfH);
         ctx.stroke();
+      } else if (ent.shape === 'custom' && ent.customPath) {
+        // Parse and draw custom path
+        const commands = ent.customPath.split(' ').filter(Boolean);
+        ctx.beginPath();
+        let i = 0;
+        while (i < commands.length) {
+          const cmd = commands[i];
+          if (cmd === 'M') {
+            ctx.moveTo(parseFloat(commands[i+1]) * halfW, parseFloat(commands[i+2]) * halfH);
+            i += 3;
+          } else if (cmd === 'L') {
+            ctx.lineTo(parseFloat(commands[i+1]) * halfW, parseFloat(commands[i+2]) * halfH);
+            i += 3;
+          } else if (cmd === 'Z') {
+            ctx.closePath();
+            i += 1;
+          } else {
+            i += 1;
+          }
+        }
+        ctx.fill();
+        ctx.stroke();
       }
 
       // Health bar for enemies
@@ -477,7 +553,7 @@ export default function GamePlayer() {
                   } else if (choice.nextLevelId) {
                     startLevel(choice.nextLevelId);
                   } else {
-                    setGameState('menu');
+                    setGameStateSafe('menu');
                   }
                 }}
                 className="w-full text-left px-6 py-4 bg-zinc-800 hover:bg-zinc-700 rounded-lg text-zinc-200 transition-colors border border-zinc-700 hover:border-emerald-500"
@@ -487,7 +563,7 @@ export default function GamePlayer() {
             ))}
             {node.choices.length === 0 && (
               <button
-                onClick={() => setGameState('menu')}
+                onClick={() => setGameStateSafe('menu')}
                 className="w-full text-center px-6 py-4 bg-emerald-500 hover:bg-emerald-400 text-zinc-950 font-bold rounded-lg transition-colors"
               >
                 End
@@ -508,7 +584,7 @@ export default function GamePlayer() {
           </h1>
           <p className="text-xl text-zinc-400">Final Score: {score}</p>
           <button 
-            onClick={() => setGameState('menu')}
+            onClick={() => setGameStateSafe('menu')}
             className="px-8 py-3 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 font-bold rounded-full transition-colors"
           >
             Return to Menu

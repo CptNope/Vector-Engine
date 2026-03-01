@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useGameStore } from '../../store';
 import { WeaponDef } from '../../types';
 import { Plus, Trash2 } from 'lucide-react';
+import VectorPathEditor from './VectorPathEditor';
 
 export default function WeaponEditor() {
   const { gameData, updateWeapon, addWeapon, deleteWeapon } = useGameStore();
@@ -152,8 +153,19 @@ export default function WeaponEditor() {
                   <option value="line">Line</option>
                   <option value="circle">Circle</option>
                   <option value="square">Square</option>
+                  <option value="custom">Custom Vector</option>
                 </select>
               </div>
+
+              {selectedWeapon.shape === 'custom' && (
+                <div className="col-span-2">
+                  <VectorPathEditor 
+                    path={selectedWeapon.customPath || ''}
+                    onChange={path => updateWeapon({ ...selectedWeapon, customPath: path })}
+                    color={selectedWeapon.color}
+                  />
+                </div>
+              )}
 
               <div className="space-y-1">
                 <label className="text-xs text-zinc-500 uppercase font-semibold">Size</label>
@@ -167,32 +179,34 @@ export default function WeaponEditor() {
             </div>
             
             {/* Preview Canvas */}
-            <div className="mt-8 p-4 border border-zinc-800 rounded-lg bg-zinc-900/50">
-              <h3 className="text-sm font-semibold text-zinc-400 mb-4">Preview</h3>
-              <div className="h-32 bg-zinc-950 rounded flex items-center justify-center relative overflow-hidden">
-                {/* Simple CSS preview of the projectile spread */}
-                <div className="absolute bottom-4 w-4 h-4 bg-emerald-500 rounded-sm"></div>
-                {Array.from({ length: selectedWeapon.projectileCount }).map((_, i) => {
-                  const angle = selectedWeapon.projectileCount > 1 
-                    ? (i / (selectedWeapon.projectileCount - 1)) * selectedWeapon.spreadAngle - selectedWeapon.spreadAngle / 2
-                    : 0;
-                  return (
-                    <div 
-                      key={i}
-                      className="absolute bottom-12"
-                      style={{
-                        width: selectedWeapon.shape === 'circle' ? selectedWeapon.size * 2 : selectedWeapon.shape === 'line' ? 2 : selectedWeapon.size * 2,
-                        height: selectedWeapon.shape === 'line' ? selectedWeapon.size * 4 : selectedWeapon.size * 2,
-                        backgroundColor: selectedWeapon.color,
-                        borderRadius: selectedWeapon.shape === 'circle' ? '50%' : '0',
-                        transform: `rotate(${angle}deg) translateY(-20px)`,
-                        transformOrigin: '50% 100px'
-                      }}
-                    />
-                  );
-                })}
+            {selectedWeapon.shape !== 'custom' && (
+              <div className="mt-8 p-4 border border-zinc-800 rounded-lg bg-zinc-900/50">
+                <h3 className="text-sm font-semibold text-zinc-400 mb-4">Preview</h3>
+                <div className="h-32 bg-zinc-950 rounded flex items-center justify-center relative overflow-hidden">
+                  {/* Simple CSS preview of the projectile spread */}
+                  <div className="absolute bottom-4 w-4 h-4 bg-emerald-500 rounded-sm"></div>
+                  {Array.from({ length: selectedWeapon.projectileCount }).map((_, i) => {
+                    const angle = selectedWeapon.projectileCount > 1 
+                      ? (i / (selectedWeapon.projectileCount - 1)) * selectedWeapon.spreadAngle - selectedWeapon.spreadAngle / 2
+                      : 0;
+                    return (
+                      <div 
+                        key={i}
+                        className="absolute bottom-12"
+                        style={{
+                          width: selectedWeapon.shape === 'circle' ? selectedWeapon.size * 2 : selectedWeapon.shape === 'line' ? 2 : selectedWeapon.size * 2,
+                          height: selectedWeapon.shape === 'line' ? selectedWeapon.size * 4 : selectedWeapon.size * 2,
+                          backgroundColor: selectedWeapon.color,
+                          borderRadius: selectedWeapon.shape === 'circle' ? '50%' : '0',
+                          transform: `rotate(${angle}deg) translateY(-20px)`,
+                          transformOrigin: '50% 100px'
+                        }}
+                      />
+                    );
+                  })}
+                </div>
               </div>
-            </div>
+            )}
 
           </div>
         ) : (

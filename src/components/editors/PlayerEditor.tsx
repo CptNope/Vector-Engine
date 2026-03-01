@@ -1,4 +1,5 @@
 import { useGameStore } from '../../store';
+import VectorPathEditor from './VectorPathEditor';
 
 export default function PlayerEditor() {
   const { gameData, updatePlayerStats } = useGameStore();
@@ -74,8 +75,19 @@ export default function PlayerEditor() {
             >
               <option value="triangle">Triangle</option>
               <option value="ship">Fighter Ship</option>
+              <option value="custom">Custom Vector</option>
             </select>
           </div>
+
+          {stats.shape === 'custom' && (
+            <div className="col-span-2">
+              <VectorPathEditor 
+                path={stats.customPath || ''}
+                onChange={path => updatePlayerStats({ customPath: path })}
+                color={stats.color}
+              />
+            </div>
+          )}
 
           <div className="space-y-1">
             <label className="text-xs text-zinc-500 uppercase font-semibold">Ship Size</label>
@@ -89,45 +101,47 @@ export default function PlayerEditor() {
         </div>
 
         {/* Preview */}
-        <div className="mt-8 p-4 border border-zinc-800 rounded-lg bg-zinc-900/50">
-          <h3 className="text-sm font-semibold text-zinc-400 mb-4">Preview</h3>
-          <div className="h-48 bg-zinc-950 rounded flex items-center justify-center">
-            {stats.shape === 'triangle' ? (
-              <div 
-                style={{
-                  width: 0,
-                  height: 0,
-                  borderLeft: `${stats.size}px solid transparent`,
-                  borderRight: `${stats.size}px solid transparent`,
-                  borderBottom: `${stats.size * 2}px solid ${stats.color}`,
-                }}
-              />
-            ) : (
-              <div className="relative" style={{ width: stats.size * 2, height: stats.size * 2 }}>
-                {/* Custom ship shape */}
+        {stats.shape !== 'custom' && (
+          <div className="mt-8 p-4 border border-zinc-800 rounded-lg bg-zinc-900/50">
+            <h3 className="text-sm font-semibold text-zinc-400 mb-4">Preview</h3>
+            <div className="h-48 bg-zinc-950 rounded flex items-center justify-center">
+              {stats.shape === 'triangle' ? (
                 <div 
-                  className="absolute bottom-0 left-1/2 -translate-x-1/2"
                   style={{
                     width: 0,
                     height: 0,
-                    borderLeft: `${stats.size / 2}px solid transparent`,
-                    borderRight: `${stats.size / 2}px solid transparent`,
-                    borderBottom: `${stats.size * 1.5}px solid ${stats.color}`,
+                    borderLeft: `${stats.size}px solid transparent`,
+                    borderRight: `${stats.size}px solid transparent`,
+                    borderBottom: `${stats.size * 2}px solid ${stats.color}`,
                   }}
                 />
-                <div 
-                  className="absolute bottom-0 left-1/2 -translate-x-1/2"
-                  style={{
-                    width: stats.size * 2,
-                    height: stats.size / 2,
-                    backgroundColor: stats.color,
-                    borderRadius: '4px',
-                  }}
-                />
-              </div>
-            )}
+              ) : (
+                <div className="relative" style={{ width: stats.size * 2, height: stats.size * 2 }}>
+                  {/* Custom ship shape */}
+                  <div 
+                    className="absolute bottom-0 left-1/2 -translate-x-1/2"
+                    style={{
+                      width: 0,
+                      height: 0,
+                      borderLeft: `${stats.size / 2}px solid transparent`,
+                      borderRight: `${stats.size / 2}px solid transparent`,
+                      borderBottom: `${stats.size * 1.5}px solid ${stats.color}`,
+                    }}
+                  />
+                  <div 
+                    className="absolute bottom-0 left-1/2 -translate-x-1/2"
+                    style={{
+                      width: stats.size * 2,
+                      height: stats.size / 2,
+                      backgroundColor: stats.color,
+                      borderRadius: '4px',
+                    }}
+                  />
+                </div>
+              )}
+            </div>
           </div>
-        </div>
+        )}
 
       </div>
     </div>
