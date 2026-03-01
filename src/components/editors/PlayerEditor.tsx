@@ -82,9 +82,9 @@ export default function PlayerEditor() {
           {stats.shape === 'custom' && (
             <div className="col-span-2">
               <VectorPathEditor 
-                path={stats.customPath || ''}
-                onChange={path => updatePlayerStats({ customPath: path })}
-                color={stats.color}
+                paths={stats.customPaths || (stats.customPath ? [{path: stats.customPath, color: stats.color}] : [])}
+                onChange={paths => updatePlayerStats({ customPaths: paths, customPath: paths[0]?.path || '' })}
+                defaultColor={stats.color}
               />
             </div>
           )}

@@ -130,9 +130,9 @@ export default function EnemyEditor() {
               {selectedEnemy.shape === 'custom' && (
                 <div className="col-span-2">
                   <VectorPathEditor 
-                    path={selectedEnemy.customPath || ''}
-                    onChange={path => updateEnemy({ ...selectedEnemy, customPath: path })}
-                    color={selectedEnemy.color}
+                    paths={selectedEnemy.customPaths || (selectedEnemy.customPath ? [{path: selectedEnemy.customPath, color: selectedEnemy.color}] : [])}
+                    onChange={paths => updateEnemy({ ...selectedEnemy, customPaths: paths, customPath: paths[0]?.path || '' })}
+                    defaultColor={selectedEnemy.color}
                   />
                 </div>
               )}

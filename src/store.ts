@@ -35,8 +35,12 @@ const initialGameData: GameData = {
       color: '#00ff00',
       projectileCount: 1,
       spreadAngle: 0,
-      shape: 'line',
+      shape: 'custom',
       size: 4,
+      customPaths: [
+        { path: 'M 0.000 -1.000 L 0.500 0.000 L 0.000 1.000 L -0.500 0.000 Z', color: '#00ff00' },
+        { path: 'M 0.000 -0.500 L 0.200 0.000 L 0.000 0.500 L -0.200 0.000 Z', color: '#ffffff' }
+      ]
     },
     {
       id: 'w_spread',
@@ -47,8 +51,12 @@ const initialGameData: GameData = {
       color: '#ffaa00',
       projectileCount: 3,
       spreadAngle: 30,
-      shape: 'circle',
+      shape: 'custom',
       size: 3,
+      customPaths: [
+        { path: 'M 0.000 -1.000 L 1.000 0.000 L 0.000 1.000 L -1.000 0.000 Z', color: '#ffaa00' },
+        { path: 'M 0.000 -0.500 L 0.500 0.000 L 0.000 0.500 L -0.500 0.000 Z', color: '#ffffff' }
+      ]
     },
     {
       id: 'w_laser',
@@ -59,8 +67,12 @@ const initialGameData: GameData = {
       color: '#00ffff',
       projectileCount: 1,
       spreadAngle: 0,
-      shape: 'line',
+      shape: 'custom',
       size: 8,
+      customPaths: [
+        { path: 'M -0.200 -1.000 L 0.200 -1.000 L 0.200 1.000 L -0.200 1.000 Z', color: '#00ffff' },
+        { path: 'M -0.100 -1.000 L 0.100 -1.000 L 0.100 1.000 L -0.100 1.000 Z', color: '#ffffff' }
+      ]
     },
     {
       id: 'w_enemy_basic',
@@ -71,8 +83,12 @@ const initialGameData: GameData = {
       color: '#ff0000',
       projectileCount: 1,
       spreadAngle: 0,
-      shape: 'circle',
+      shape: 'custom',
       size: 4,
+      customPaths: [
+        { path: 'M 0.000 -1.000 L 1.000 0.000 L 0.000 1.000 L -1.000 0.000 Z', color: '#ff0000' },
+        { path: 'M 0.000 -0.500 L 0.500 0.000 L 0.000 0.500 L -0.500 0.000 Z', color: '#ffaaaa' }
+      ]
     }
   ],
   enemies: [
@@ -82,11 +98,16 @@ const initialGameData: GameData = {
       health: 30,
       speed: 50,
       color: '#ff4444',
-      shape: 'square',
+      shape: 'custom',
       size: 15,
       weaponId: null,
       aiType: 'chase',
       scoreValue: 100,
+      customPaths: [
+        { path: 'M -1.000 -1.000 L 1.000 -1.000 L 1.000 1.000 L -1.000 1.000 Z', color: '#ff4444' },
+        { path: 'M -0.500 -0.500 L 0.500 -0.500 L 0.500 0.500 L -0.500 0.500 Z', color: '#880000' },
+        { path: 'M -0.200 0.000 L 0.200 0.000 L 0.200 0.400 L -0.200 0.400 Z', color: '#00ffff' }
+      ]
     },
     {
       id: 'e_shooter',
@@ -94,11 +115,16 @@ const initialGameData: GameData = {
       health: 50,
       speed: 30,
       color: '#ff00ff',
-      shape: 'triangle',
+      shape: 'custom',
       size: 20,
       weaponId: 'w_enemy_basic',
       aiType: 'sine',
       scoreValue: 250,
+      customPaths: [
+        { path: 'M 0.000 1.000 L 1.000 -1.000 L -1.000 -1.000 Z', color: '#ff00ff' },
+        { path: 'M 0.000 0.500 L 0.500 -0.500 L -0.500 -0.500 Z', color: '#880088' },
+        { path: 'M -0.200 -0.200 L 0.200 -0.200 L 0.200 0.200 L -0.200 0.200 Z', color: '#00ffff' }
+      ]
     },
     {
       id: 'e_tank',
@@ -106,14 +132,43 @@ const initialGameData: GameData = {
       health: 200,
       speed: 20,
       color: '#ffaa00',
-      shape: 'square',
+      shape: 'custom',
       size: 30,
       weaponId: 'w_spread',
       aiType: 'patrol',
       scoreValue: 500,
+      customPaths: [
+        { path: 'M -1.000 -0.500 L 1.000 -0.500 L 1.000 0.500 L -1.000 0.500 Z', color: '#ffaa00' },
+        { path: 'M -0.800 -0.800 L 0.800 -0.800 L 0.800 0.800 L -0.800 0.800 Z', color: '#cc8800' },
+        { path: 'M -0.400 -0.200 L 0.400 -0.200 L 0.400 0.200 L -0.400 0.200 Z', color: '#ff0000' }
+      ]
     }
   ],
-  obstacles: [],
+  obstacles: [
+    {
+      id: 'o_asteroid_1',
+      name: 'Asteroid Small',
+      shape: 'custom',
+      size: 20,
+      color: '#888888',
+      customPaths: [
+        { path: 'M -0.500 -1.000 L 0.500 -0.800 L 1.000 0.000 L 0.600 0.800 L -0.400 1.000 L -1.000 0.200 Z', color: '#888888' },
+        { path: 'M -0.200 -0.500 L 0.200 -0.400 L 0.400 0.000 L 0.200 0.400 L -0.200 0.500 L -0.400 0.100 Z', color: '#555555' }
+      ]
+    },
+    {
+      id: 'o_asteroid_2',
+      name: 'Asteroid Large',
+      shape: 'custom',
+      size: 40,
+      color: '#666666',
+      customPaths: [
+        { path: 'M -0.800 -0.800 L 0.200 -1.000 L 1.000 -0.200 L 0.800 0.800 L -0.200 1.000 L -1.000 0.200 Z', color: '#666666' },
+        { path: 'M -0.400 -0.400 L 0.100 -0.500 L 0.500 -0.100 L 0.400 0.400 L -0.100 0.500 L -0.500 0.100 Z', color: '#444444' },
+        { path: 'M 0.200 0.200 L 0.400 0.100 L 0.500 0.300 L 0.300 0.400 Z', color: '#333333' }
+      ]
+    }
+  ],
   levels: [
     {
       id: 'l_1',
@@ -150,7 +205,12 @@ const initialGameData: GameData = {
         { id: 'ent_17', enemyDefId: 'e_shooter', x: 200, y: 200 },
         { id: 'ent_18', enemyDefId: 'e_shooter', x: 600, y: 200 },
       ],
-      obstacles: [],
+      obstacles: [
+        { id: 'obs_1', obstacleDefId: 'o_asteroid_1', x: 100, y: 3200 },
+        { id: 'obs_2', obstacleDefId: 'o_asteroid_2', x: 700, y: 2500 },
+        { id: 'obs_3', obstacleDefId: 'o_asteroid_1', x: 400, y: 1500 },
+        { id: 'obs_4', obstacleDefId: 'o_asteroid_2', x: 200, y: 500 },
+      ],
       nextLevelId: null,
       nextStoryNodeId: 's_2',
     }
@@ -185,8 +245,13 @@ const initialGameData: GameData = {
     speed: 250,
     color: '#00ffff',
     startingWeaponId: 'w_default',
-    shape: 'ship',
+    shape: 'custom',
     size: 15,
+    customPaths: [
+      { path: 'M 0.000 -1.000 L 1.000 1.000 L -1.000 1.000 Z', color: '#00ffff' },
+      { path: 'M -0.500 1.000 L 0.500 1.000 L 0.500 1.300 L -0.500 1.300 Z', color: '#ffffff' },
+      { path: 'M -0.300 1.300 L 0.300 1.300 L 0.000 1.800 Z', color: '#ffaa00' }
+    ]
   },
   startStoryNodeId: 's_1',
   startLevelId: null,

@@ -77,27 +77,34 @@ export default function LevelEditor() {
         ctx.lineTo(def.size, def.size);
         ctx.lineTo(-def.size, def.size);
         ctx.fill();
-      } else if (def.shape === 'custom' && def.customPath) {
-        const commands = def.customPath.split(' ').filter(Boolean);
-        ctx.beginPath();
-        let i = 0;
-        while (i < commands.length) {
-          const cmd = commands[i];
-          if (cmd === 'M') {
-            ctx.moveTo(parseFloat(commands[i+1]) * def.size, parseFloat(commands[i+2]) * def.size);
-            i += 3;
-          } else if (cmd === 'L') {
-            ctx.lineTo(parseFloat(commands[i+1]) * def.size, parseFloat(commands[i+2]) * def.size);
-            i += 3;
-          } else if (cmd === 'Z') {
-            ctx.closePath();
-            i += 1;
-          } else {
-            i += 1;
+      } else if (def.shape === 'custom') {
+        const pathsToDraw = def.customPaths?.length ? def.customPaths : (def.customPath ? [{ path: def.customPath, color: def.color }] : []);
+        
+        pathsToDraw.forEach(layer => {
+          if (!layer.path) return;
+          const commands = layer.path.split(' ').filter(Boolean);
+          ctx.beginPath();
+          let i = 0;
+          while (i < commands.length) {
+            const cmd = commands[i];
+            if (cmd === 'M') {
+              ctx.moveTo(parseFloat(commands[i+1]) * def.size, parseFloat(commands[i+2]) * def.size);
+              i += 3;
+            } else if (cmd === 'L') {
+              ctx.lineTo(parseFloat(commands[i+1]) * def.size, parseFloat(commands[i+2]) * def.size);
+              i += 3;
+            } else if (cmd === 'Z') {
+              ctx.closePath();
+              i += 1;
+            } else {
+              i += 1;
+            }
           }
-        }
-        ctx.fill();
-        ctx.stroke();
+          ctx.fillStyle = layer.color + '40';
+          ctx.fill();
+          ctx.strokeStyle = layer.color;
+          ctx.stroke();
+        });
       }
       ctx.restore();
     });
@@ -123,27 +130,34 @@ export default function LevelEditor() {
         ctx.beginPath();
         ctx.arc(0, 0, def.size, 0, Math.PI * 2);
         ctx.fill();
-      } else if (def.shape === 'custom' && def.customPath) {
-        const commands = def.customPath.split(' ').filter(Boolean);
-        ctx.beginPath();
-        let i = 0;
-        while (i < commands.length) {
-          const cmd = commands[i];
-          if (cmd === 'M') {
-            ctx.moveTo(parseFloat(commands[i+1]) * def.size, parseFloat(commands[i+2]) * def.size);
-            i += 3;
-          } else if (cmd === 'L') {
-            ctx.lineTo(parseFloat(commands[i+1]) * def.size, parseFloat(commands[i+2]) * def.size);
-            i += 3;
-          } else if (cmd === 'Z') {
-            ctx.closePath();
-            i += 1;
-          } else {
-            i += 1;
+      } else if (def.shape === 'custom') {
+        const pathsToDraw = def.customPaths?.length ? def.customPaths : (def.customPath ? [{ path: def.customPath, color: def.color }] : []);
+        
+        pathsToDraw.forEach(layer => {
+          if (!layer.path) return;
+          const commands = layer.path.split(' ').filter(Boolean);
+          ctx.beginPath();
+          let i = 0;
+          while (i < commands.length) {
+            const cmd = commands[i];
+            if (cmd === 'M') {
+              ctx.moveTo(parseFloat(commands[i+1]) * def.size, parseFloat(commands[i+2]) * def.size);
+              i += 3;
+            } else if (cmd === 'L') {
+              ctx.lineTo(parseFloat(commands[i+1]) * def.size, parseFloat(commands[i+2]) * def.size);
+              i += 3;
+            } else if (cmd === 'Z') {
+              ctx.closePath();
+              i += 1;
+            } else {
+              i += 1;
+            }
           }
-        }
-        ctx.fill();
-        ctx.stroke();
+          ctx.fillStyle = layer.color + '40';
+          ctx.fill();
+          ctx.strokeStyle = layer.color;
+          ctx.stroke();
+        });
       }
       ctx.restore();
     });

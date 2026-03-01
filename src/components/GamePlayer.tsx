@@ -19,10 +19,22 @@ type Entity = {
   color: string;
   shape: string;
   customPath?: string;
+  customPaths?: { path: string, color: string }[];
   weaponId?: string | null;
   aiType?: string;
   scoreValue?: number;
   createdAt: number;
+};
+
+type Particle = {
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  life: number;
+  maxLife: number;
+  color: string;
+  size: number;
 };
 
 export default function GamePlayer() {
@@ -42,6 +54,7 @@ export default function GamePlayer() {
   const stateRef = useRef({
     gameState: 'menu' as GameState,
     entities: [] as Entity[],
+    particles: [] as Particle[],
     keys: {} as Record<string, boolean>,
     lastTime: 0,
     cameraY: 0,
@@ -51,6 +64,36 @@ export default function GamePlayer() {
     score: 0,
     playerHealth: 100,
   });
+
+  const createExplosion = (x: number, y: number, color: string, count: number = 20) => {
+    for (let i = 0; i < count; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const speed = Math.random() * 150 + 50;
+      stateRef.current.particles.push({
+        x,
+        y,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed,
+        life: 1,
+        maxLife: Math.random() * 0.5 + 0.2,
+        color,
+        size: Math.random() * 4 + 2,
+      });
+    }
+  };
+
+  const createThruster = (x: number, y: number, color: string) => {
+    stateRef.current.particles.push({
+      x: x + (Math.random() - 0.5) * 10,
+      y: y + 10,
+      vx: (Math.random() - 0.5) * 20,
+      vy: Math.random() * 50 + 50,
+      life: 1,
+      maxLife: Math.random() * 0.2 + 0.1,
+      color,
+      size: Math.random() * 3 + 1,
+    });
+  };
 
   const setGameStateSafe = (newState: GameState) => {
     stateRef.current.gameState = newState;
@@ -88,6 +131,7 @@ export default function GamePlayer() {
     stateRef.current.level = level;
     stateRef.current.cameraY = level.scrollDirection === 'vertical' ? level.length - 600 : 0;
     stateRef.current.cameraX = 0;
+    stateRef.current.particles = [];
     
     // Spawn Player
     const player: Entity = {
@@ -103,6 +147,7 @@ export default function GamePlayer() {
       color: gameData.playerBaseStats.color,
       shape: gameData.playerBaseStats.shape,
       customPath: gameData.playerBaseStats.customPath,
+      customPaths: gameData.playerBaseStats.customPaths,
       weaponId: gameData.playerBaseStats.startingWeaponId,
       createdAt: Date.now()
     };
@@ -124,6 +169,7 @@ export default function GamePlayer() {
         color: def.color,
         shape: def.shape,
         customPath: def.customPath,
+        customPaths: def.customPaths,
         weaponId: def.weaponId,
         aiType: def.aiType,
         scoreValue: def.scoreValue,
@@ -148,6 +194,7 @@ export default function GamePlayer() {
         color: def.color,
         shape: def.shape,
         customPath: def.customPath,
+        customPaths: def.customPaths,
         createdAt: Date.now()
       };
     }).filter(Boolean) as Entity[];
@@ -254,6 +301,7 @@ export default function GamePlayer() {
         color: weaponDef.color,
         shape: weaponDef.shape,
         customPath: weaponDef.customPath,
+        customPaths: weaponDef.customPaths,
         createdAt: now
       });
     }
@@ -272,6 +320,14 @@ export default function GamePlayer() {
       state.cameraX += scrollSpeed * dt;
     }
 
+    // Update Particles
+    state.particles = state.particles.filter(p => {
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+      p.life -= dt / p.maxLife;
+      return p.life > 0;
+    });
+
     const player = state.entities.find(e => e.type === 'player');
     if (player) {
       // Player Movement
@@ -286,6 +342,11 @@ export default function GamePlayer() {
 
       player.x += player.vx * dt;
       player.y += player.vy * dt;
+
+      // Thruster particles
+      if (player.vy < 0 || player.vx !== 0) {
+        createThruster(player.x, player.y + player.height / 2, '#ffaa00');
+      }
 
       // Keep player in camera bounds
       if (level.scrollDirection === 'vertical') {
@@ -365,8 +426,14 @@ export default function GamePlayer() {
         if (hit) {
           // Obstacles block projectiles and damage players/enemies
           if (a.type === 'obstacle' || b.type === 'obstacle') {
-            if (a.type.includes('projectile')) a.health = 0;
-            if (b.type.includes('projectile')) b.health = 0;
+            if (a.type.includes('projectile')) {
+              a.health = 0;
+              createExplosion(a.x, a.y, a.color, 5);
+            }
+            if (b.type.includes('projectile')) {
+              b.health = 0;
+              createExplosion(b.x, b.y, b.color, 5);
+            }
             
             if (a.type === 'player' || a.type === 'enemy') a.health -= 1; // Continuous damage
             if (b.type === 'player' || b.type === 'enemy') b.health -= 1;
@@ -377,6 +444,9 @@ export default function GamePlayer() {
             
             a.health -= dmgA;
             b.health -= dmgB;
+            
+            if (a.type.includes('projectile')) createExplosion(a.x, a.y, a.color, 5);
+            if (b.type.includes('projectile')) createExplosion(b.x, b.y, b.color, 5);
           }
         }
       }
@@ -385,12 +455,19 @@ export default function GamePlayer() {
     // Cleanup dead entities and out of bounds
     state.entities = state.entities.filter(ent => {
       if (ent.health <= 0) {
-        if (ent.type === 'enemy' && ent.scoreValue) {
-          state.score += ent.scoreValue;
-          setScore(state.score);
+        if (ent.type === 'enemy') {
+          if (ent.scoreValue) {
+            state.score += ent.scoreValue;
+            setScore(state.score);
+          }
+          createExplosion(ent.x, ent.y, ent.color, 30);
         }
         if (ent.type === 'player') {
           setPlayerHealth(0);
+          createExplosion(ent.x, ent.y, ent.color, 50);
+          setTimeout(() => {
+            setGameStateSafe('gameover');
+          }, 1000);
         }
         return false;
       }
@@ -434,6 +511,16 @@ export default function GamePlayer() {
       ctx.beginPath(); ctx.moveTo(state.cameraX, y); ctx.lineTo(state.cameraX + 800, y); ctx.stroke();
     }
 
+    // Draw Particles
+    state.particles.forEach(p => {
+      ctx.globalAlpha = p.life;
+      ctx.fillStyle = p.color;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+      ctx.fill();
+    });
+    ctx.globalAlpha = 1.0;
+
     // Draw Entities
     state.entities.forEach(ent => {
       ctx.save();
@@ -471,28 +558,34 @@ export default function GamePlayer() {
         ctx.moveTo(0, -halfH);
         ctx.lineTo(0, halfH);
         ctx.stroke();
-      } else if (ent.shape === 'custom' && ent.customPath) {
-        // Parse and draw custom path
-        const commands = ent.customPath.split(' ').filter(Boolean);
-        ctx.beginPath();
-        let i = 0;
-        while (i < commands.length) {
-          const cmd = commands[i];
-          if (cmd === 'M') {
-            ctx.moveTo(parseFloat(commands[i+1]) * halfW, parseFloat(commands[i+2]) * halfH);
-            i += 3;
-          } else if (cmd === 'L') {
-            ctx.lineTo(parseFloat(commands[i+1]) * halfW, parseFloat(commands[i+2]) * halfH);
-            i += 3;
-          } else if (cmd === 'Z') {
-            ctx.closePath();
-            i += 1;
-          } else {
-            i += 1;
+      } else if (ent.shape === 'custom') {
+        const pathsToDraw = ent.customPaths?.length ? ent.customPaths : (ent.customPath ? [{ path: ent.customPath, color: ent.color }] : []);
+        
+        pathsToDraw.forEach(layer => {
+          if (!layer.path) return;
+          const commands = layer.path.split(' ').filter(Boolean);
+          ctx.beginPath();
+          let i = 0;
+          while (i < commands.length) {
+            const cmd = commands[i];
+            if (cmd === 'M') {
+              ctx.moveTo(parseFloat(commands[i+1]) * halfW, parseFloat(commands[i+2]) * halfH);
+              i += 3;
+            } else if (cmd === 'L') {
+              ctx.lineTo(parseFloat(commands[i+1]) * halfW, parseFloat(commands[i+2]) * halfH);
+              i += 3;
+            } else if (cmd === 'Z') {
+              ctx.closePath();
+              i += 1;
+            } else {
+              i += 1;
+            }
           }
-        }
-        ctx.fill();
-        ctx.stroke();
+          ctx.fillStyle = layer.color + '40'; // 25% opacity fill
+          ctx.fill();
+          ctx.strokeStyle = layer.color;
+          ctx.stroke();
+        });
       }
 
       // Health bar for enemies

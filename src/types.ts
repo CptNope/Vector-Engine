@@ -1,5 +1,10 @@
 export type Vector2 = { x: number; y: number };
 
+export type VectorPath = {
+  path: string;
+  color: string;
+};
+
 export type WeaponDef = {
   id: string;
   name: string;
@@ -11,6 +16,7 @@ export type WeaponDef = {
   spreadAngle: number;
   shape: 'circle' | 'line' | 'square' | 'custom';
   customPath?: string;
+  customPaths?: VectorPath[];
   size: number;
 };
 
@@ -22,6 +28,7 @@ export type EnemyDef = {
   color: string;
   shape: 'circle' | 'square' | 'triangle' | 'custom';
   customPath?: string;
+  customPaths?: VectorPath[];
   size: number;
   weaponId: string | null;
   aiType: 'chase' | 'patrol' | 'stationary' | 'sine';
@@ -33,6 +40,7 @@ export type ObstacleDef = {
   name: string;
   shape: 'square' | 'circle' | 'custom';
   customPath?: string;
+  customPaths?: VectorPath[];
   size: number;
   color: string;
 };
@@ -84,6 +92,7 @@ export type GameData = {
     startingWeaponId: string | null;
     shape: 'triangle' | 'ship' | 'custom';
     customPath?: string;
+    customPaths?: VectorPath[];
     size: number;
   };
   startStoryNodeId: string | null;

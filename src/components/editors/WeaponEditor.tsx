@@ -160,9 +160,9 @@ export default function WeaponEditor() {
               {selectedWeapon.shape === 'custom' && (
                 <div className="col-span-2">
                   <VectorPathEditor 
-                    path={selectedWeapon.customPath || ''}
-                    onChange={path => updateWeapon({ ...selectedWeapon, customPath: path })}
-                    color={selectedWeapon.color}
+                    paths={selectedWeapon.customPaths || (selectedWeapon.customPath ? [{path: selectedWeapon.customPath, color: selectedWeapon.color}] : [])}
+                    onChange={paths => updateWeapon({ ...selectedWeapon, customPaths: paths, customPath: paths[0]?.path || '' })}
+                    defaultColor={selectedWeapon.color}
                   />
                 </div>
               )}

@@ -102,9 +102,9 @@ export default function ObstacleEditor() {
               {selectedObstacle.shape === 'custom' && (
                 <div className="col-span-2">
                   <VectorPathEditor 
-                    path={selectedObstacle.customPath || ''}
-                    onChange={path => updateObstacle({ ...selectedObstacle, customPath: path })}
-                    color={selectedObstacle.color}
+                    paths={selectedObstacle.customPaths || (selectedObstacle.customPath ? [{path: selectedObstacle.customPath, color: selectedObstacle.color}] : [])}
+                    onChange={paths => updateObstacle({ ...selectedObstacle, customPaths: paths, customPath: paths[0]?.path || '' })}
+                    defaultColor={selectedObstacle.color}
                   />
                 </div>
               )}
