@@ -88,75 +88,109 @@ export default function VectorPathEditor({ paths, onChange, defaultColor }: Vect
   };
 
   useEffect(() => {
-    const canvas = canvasRef.current;
-    const ctx = canvas?.getContext('2d');
-    if (!canvas || !ctx) return;
+    let animationFrameId: number;
 
-    ctx.clearRect(0, 0, size, size);
+    const render = () => {
+      const canvas = canvasRef.current;
+      const ctx = canvas?.getContext('2d');
+      if (!canvas || !ctx) return;
 
-    // Draw grid
-    ctx.strokeStyle = '#333';
-    ctx.lineWidth = 1;
-    
-    if (snapToGrid) {
-      ctx.beginPath();
-      for (let i = -1; i <= 1; i += 0.2) {
-        const pos = center + i * radius;
-        ctx.moveTo(pos, 0); ctx.lineTo(pos, size);
-        ctx.moveTo(0, pos); ctx.lineTo(size, pos);
-      }
-      ctx.stroke();
-    } else {
-      ctx.beginPath();
-      ctx.moveTo(center, 0); ctx.lineTo(center, size);
-      ctx.moveTo(0, center); ctx.lineTo(size, center);
-      ctx.stroke();
-    }
-    
-    ctx.strokeStyle = '#222';
-    ctx.beginPath();
-    ctx.arc(center, center, radius, 0, Math.PI * 2);
-    ctx.stroke();
+      ctx.clearRect(0, 0, size, size);
 
-    // Draw all layers
-    currentPaths.forEach((layer, layerIdx) => {
-      const pts = parsePath(layer.path);
-      if (pts.length === 0) return;
-
-      ctx.strokeStyle = layer.color;
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.moveTo(center + pts[0].x * radius, center + pts[0].y * radius);
-      for (let i = 1; i < pts.length; i++) {
-        ctx.lineTo(center + pts[i].x * radius, center + pts[i].y * radius);
-      }
-      if (pts.length > 2) {
-        ctx.closePath();
-      }
-      ctx.stroke();
+      // Draw grid
+      ctx.strokeStyle = '#333';
+      ctx.lineWidth = 1;
       
-      // Fill if closed
-      if (pts.length > 2) {
-        ctx.fillStyle = layer.color + '40'; // 25% opacity
-        ctx.fill();
+      if (snapToGrid) {
+        ctx.beginPath();
+        for (let i = -1; i <= 1; i += 0.2) {
+          const pos = center + i * radius;
+          ctx.moveTo(pos, 0); ctx.lineTo(pos, size);
+          ctx.moveTo(0, pos); ctx.lineTo(size, pos);
+        }
+        ctx.stroke();
+      } else {
+        ctx.beginPath();
+        ctx.moveTo(center, 0); ctx.lineTo(center, size);
+        ctx.moveTo(0, center); ctx.lineTo(size, center);
+        ctx.stroke();
       }
+      
+      ctx.strokeStyle = '#222';
+      ctx.beginPath();
+      ctx.arc(center, center, radius, 0, Math.PI * 2);
+      ctx.stroke();
 
-      // Draw points only for active layer
-      if (layerIdx === safeActiveLayer) {
-        pts.forEach((p, i) => {
-          ctx.fillStyle = i === hoverIdx ? '#ff0' : (i === draggingIdx ? '#0f0' : '#fff');
-          ctx.beginPath();
-          ctx.arc(center + p.x * radius, center + p.y * radius, i === hoverIdx ? 6 : 4, 0, Math.PI * 2);
+      const now = performance.now() / 1000;
+
+      // Draw all layers
+      currentPaths.forEach((layer, layerIdx) => {
+        const pts = parsePath(layer.path);
+        if (pts.length === 0) return;
+
+        ctx.save();
+        ctx.translate(center, center);
+
+        // Apply animations
+        if (layer.rotationSpeed) {
+          ctx.rotate(layer.rotationSpeed * now * (Math.PI / 180));
+        }
+        
+        if (layer.pulseSpeed && layer.pulseMin !== undefined && layer.pulseMax !== undefined) {
+          const range = layer.pulseMax - layer.pulseMin;
+          const scale = layer.pulseMin + (Math.sin(now * layer.pulseSpeed * Math.PI * 2) * 0.5 + 0.5) * range;
+          ctx.scale(scale, scale);
+        }
+
+        ctx.strokeStyle = layer.color;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(pts[0].x * radius, pts[0].y * radius);
+        for (let i = 1; i < pts.length; i++) {
+          ctx.lineTo(pts[i].x * radius, pts[i].y * radius);
+        }
+        if (pts.length > 2) {
+          ctx.closePath();
+        }
+        ctx.stroke();
+        
+        // Fill if closed
+        if (pts.length > 2) {
+          ctx.fillStyle = layer.color + '40'; // 25% opacity
           ctx.fill();
-          if (i === 0) {
-            ctx.strokeStyle = '#0f0';
-            ctx.lineWidth = 2;
-            ctx.stroke();
-          }
-        });
-      }
-    });
+        }
 
+        // Draw points only for active layer
+        if (layerIdx === safeActiveLayer) {
+          // Reset transform so points don't rotate/scale, making them easier to click/drag
+          ctx.restore();
+          ctx.save();
+          ctx.translate(center, center);
+          
+          pts.forEach((p, i) => {
+            ctx.fillStyle = i === hoverIdx ? '#ff0' : (i === draggingIdx ? '#0f0' : '#fff');
+            ctx.beginPath();
+            ctx.arc(p.x * radius, p.y * radius, i === hoverIdx ? 6 : 4, 0, Math.PI * 2);
+            ctx.fill();
+            if (i === 0) {
+              ctx.strokeStyle = '#0f0';
+              ctx.lineWidth = 2;
+              ctx.stroke();
+            }
+          });
+        }
+
+        ctx.restore();
+      });
+
+      animationFrameId = requestAnimationFrame(render);
+    };
+
+    render();
+
+    return () => {
+      cancelAnimationFrame(animationFrameId);
+    };
   }, [currentPaths, safeActiveLayer, snapToGrid, hoverIdx, draggingIdx]);
 
   const getMouseCoords = (e: React.MouseEvent | MouseEvent) => {

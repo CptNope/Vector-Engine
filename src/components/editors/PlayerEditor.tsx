@@ -100,6 +100,20 @@ export default function PlayerEditor() {
             />
           </div>
 
+          <div className="space-y-1">
+            <label className="text-xs text-zinc-500 uppercase font-semibold">Death Sound</label>
+            <select 
+              value={stats.deathSoundId || ''}
+              onChange={e => updatePlayerStats({ deathSoundId: e.target.value || undefined })}
+              className="w-full bg-zinc-900 border border-zinc-800 rounded px-3 py-2 text-sm focus:outline-none focus:border-emerald-500"
+            >
+              <option value="">None</option>
+              {gameData.soundEffects?.map(s => (
+                <option key={s.id} value={s.id}>{s.name}</option>
+              ))}
+            </select>
+          </div>
+
           <div className="col-span-2 space-y-4">
             <ParticleConfigEditor 
               label="Thruster Particles"

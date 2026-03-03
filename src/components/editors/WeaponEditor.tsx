@@ -178,6 +178,20 @@ export default function WeaponEditor() {
                 />
               </div>
 
+              <div className="space-y-1">
+                <label className="text-xs text-zinc-500 uppercase font-semibold">Fire Sound</label>
+                <select 
+                  value={selectedWeapon.fireSoundId || ''}
+                  onChange={e => updateWeapon({ ...selectedWeapon, fireSoundId: e.target.value || undefined })}
+                  className="w-full bg-zinc-900 border border-zinc-800 rounded px-3 py-2 text-sm focus:outline-none focus:border-emerald-500"
+                >
+                  <option value="">None</option>
+                  {gameData.soundEffects?.map(s => (
+                    <option key={s.id} value={s.id}>{s.name}</option>
+                  ))}
+                </select>
+              </div>
+
               <div className="col-span-2">
                 <ParticleConfigEditor 
                   label="Hit Particles"

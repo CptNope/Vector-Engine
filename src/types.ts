@@ -26,11 +26,12 @@ export type WeaponDef = {
   color: string;
   projectileCount: number;
   spreadAngle: number;
-  shape: 'circle' | 'line' | 'square' | 'custom';
+  shape: "circle" | "line" | "square" | "custom";
   customPath?: string;
   customPaths?: VectorPath[];
   size: number;
   hitParticles?: ParticleConfig;
+  fireSoundId?: string;
 };
 
 export type EnemyDef = {
@@ -39,33 +40,46 @@ export type EnemyDef = {
   health: number;
   speed: number;
   color: string;
-  shape: 'circle' | 'square' | 'triangle' | 'custom';
+  shape: "circle" | "square" | "triangle" | "custom";
   customPath?: string;
   customPaths?: VectorPath[];
   size: number;
   weaponId: string | null;
-  aiType: 'chase' | 'patrol' | 'stationary' | 'sine';
+  aiType: "chase" | "patrol" | "stationary" | "sine";
   scoreValue: number;
   deathParticles?: ParticleConfig;
+  deathSoundId?: string;
+  powerupDrops?: { powerupId: string; dropChance: number }[];
 };
 
 export type ObstacleDef = {
   id: string;
   name: string;
-  shape: 'square' | 'circle' | 'custom';
+  shape: "square" | "circle" | "custom";
   customPath?: string;
   customPaths?: VectorPath[];
   size: number;
   color: string;
   deathParticles?: ParticleConfig;
+  deathSoundId?: string;
+};
+
+export type BackgroundLayer = {
+  id: string;
+  speed: number; // Parallax speed multiplier (e.g., 0.5 for half speed)
+  color: string;
+  density: number; // Number of stars/shapes
+  size: number;
+  shape: "circle" | "square" | "line";
 };
 
 export type LevelDef = {
   id: string;
   name: string;
-  scrollDirection: 'horizontal' | 'vertical';
+  scrollDirection: "horizontal" | "vertical";
   length: number; // in pixels
   backgroundColor: string;
+  backgroundLayers?: BackgroundLayer[];
   entities: {
     id: string;
     enemyDefId: string;
@@ -78,8 +92,15 @@ export type LevelDef = {
     x: number;
     y: number;
   }[];
+  powerups?: {
+    id: string;
+    powerupDefId: string;
+    x: number;
+    y: number;
+  }[];
   nextLevelId: string | null; // Default next level
   nextStoryNodeId: string | null; // Or next story node
+  musicTrackId?: string;
 };
 
 export type StoryNode = {
@@ -94,23 +115,87 @@ export type StoryNode = {
   }[];
 };
 
+export type EnvelopeConfig = {
+  attack: number;
+  decay: number;
+  sustain: number;
+  release: number;
+};
+
+export type SynthConfig = {
+  oscillatorType: "sine" | "square" | "sawtooth" | "triangle";
+  envelope: EnvelopeConfig;
+  volume: number;
+  filterType: "lowpass" | "highpass" | "bandpass";
+  filterCutoff: number;
+  filterResonance: number;
+};
+
+export type NoteDef = {
+  pitch: number; // MIDI note number
+  time: number; // Start time in beats
+  duration: number; // Duration in beats
+  velocity: number; // 0-1
+};
+
+export type SoundEffectDef = {
+  id: string;
+  name: string;
+  synthConfig: SynthConfig;
+  notes: NoteDef[];
+  duration: number; // Total duration in beats
+};
+
+export type MusicChannelDef = {
+  id: string;
+  name: string;
+  synthConfig: SynthConfig;
+  notes: NoteDef[];
+};
+
+export type MusicTrackDef = {
+  id: string;
+  name: string;
+  bpm: number;
+  channels: MusicChannelDef[];
+};
+
+export type PowerupDef = {
+  id: string;
+  name: string;
+  type: "health" | "weapon" | "score" | "speed";
+  value: number; // Amount of health, score, or speed multiplier
+  weaponId?: string; // If type is weapon
+  shape: "circle" | "square" | "custom";
+  customPath?: string;
+  customPaths?: VectorPath[];
+  size: number;
+  color: string;
+  pickupSoundId?: string;
+  pickupParticles?: ParticleConfig;
+};
+
 export type GameData = {
   weapons: WeaponDef[];
   enemies: EnemyDef[];
   obstacles: ObstacleDef[];
+  powerups: PowerupDef[];
   levels: LevelDef[];
   storyNodes: StoryNode[];
+  soundEffects: SoundEffectDef[];
+  musicTracks: MusicTrackDef[];
   playerBaseStats: {
     health: number;
     speed: number;
     color: string;
     startingWeaponId: string | null;
-    shape: 'triangle' | 'ship' | 'custom';
+    shape: "triangle" | "ship" | "custom";
     customPath?: string;
     customPaths?: VectorPath[];
     size: number;
     deathParticles?: ParticleConfig;
     thrusterParticles?: ParticleConfig;
+    deathSoundId?: string;
   };
   startStoryNodeId: string | null;
   startLevelId: string | null;

@@ -7,9 +7,12 @@ import LevelEditor from './components/editors/LevelEditor';
 import StoryEditor from './components/editors/StoryEditor';
 import PlayerEditor from './components/editors/PlayerEditor';
 import ObstacleEditor from './components/editors/ObstacleEditor';
+import PowerupEditor from './components/editors/PowerupEditor';
+import SoundEditor from './components/editors/SoundEditor';
+import MusicEditor from './components/editors/MusicEditor';
 import GamePlayer from './components/GamePlayer';
 
-type ViewMode = 'play' | 'weapons' | 'enemies' | 'levels' | 'story' | 'player' | 'obstacles';
+type ViewMode = 'play' | 'weapons' | 'enemies' | 'levels' | 'story' | 'player' | 'obstacles' | 'powerups' | 'sounds' | 'music';
 
 export default function App() {
   const [viewMode, setViewMode] = useState<ViewMode>('play');
@@ -60,6 +63,9 @@ export default function App() {
           <NavItem icon={<Skull size={18} />} label="Enemies" active={viewMode === 'enemies'} onClick={() => setViewMode('enemies')} />
           <NavItem icon={<Crosshair size={18} />} label="Weapons" active={viewMode === 'weapons'} onClick={() => setViewMode('weapons')} />
           <NavItem icon={<PenTool size={18} />} label="Obstacles" active={viewMode === 'obstacles'} onClick={() => setViewMode('obstacles')} />
+          <NavItem icon={<PenTool size={18} />} label="Powerups" active={viewMode === 'powerups'} onClick={() => setViewMode('powerups')} />
+          <NavItem icon={<Play size={18} />} label="Sound Effects" active={viewMode === 'sounds'} onClick={() => setViewMode('sounds')} />
+          <NavItem icon={<Play size={18} />} label="Music Tracks" active={viewMode === 'music'} onClick={() => setViewMode('music')} />
           <NavItem icon={<User size={18} />} label="Player Stats" active={viewMode === 'player'} onClick={() => setViewMode('player')} />
         </nav>
 
@@ -83,6 +89,9 @@ export default function App() {
         {viewMode === 'story' && <StoryEditor />}
         {viewMode === 'player' && <PlayerEditor />}
         {viewMode === 'obstacles' && <ObstacleEditor />}
+        {viewMode === 'powerups' && <PowerupEditor />}
+        {viewMode === 'sounds' && <SoundEditor />}
+        {viewMode === 'music' && <MusicEditor />}
       </div>
     </div>
   );
