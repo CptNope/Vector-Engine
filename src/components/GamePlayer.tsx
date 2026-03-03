@@ -356,7 +356,7 @@ export default function GamePlayer() {
       customPath: gameData.playerBaseStats.customPath,
       customPaths: gameData.playerBaseStats.customPaths,
       weaponId: gameData.playerBaseStats.startingWeaponId,
-      createdAt: Date.now(),
+      createdAt: performance.now(),
     };
 
     // Spawn Enemies
@@ -382,7 +382,7 @@ export default function GamePlayer() {
           weaponId: def.weaponId,
           aiType: def.aiType,
           scoreValue: def.scoreValue,
-          createdAt: Date.now(),
+          createdAt: performance.now(),
         };
       })
       .filter(Boolean) as Entity[];
@@ -407,7 +407,7 @@ export default function GamePlayer() {
           shape: def.shape,
           customPath: def.customPath,
           customPaths: def.customPaths,
-          createdAt: Date.now(),
+          createdAt: performance.now(),
         };
       })
       .filter(Boolean) as Entity[];
@@ -433,7 +433,7 @@ export default function GamePlayer() {
           customPath: def.customPath,
           customPaths: def.customPaths,
           powerupId: def.id,
-          createdAt: Date.now(),
+          createdAt: performance.now(),
         };
       })
       .filter(Boolean) as Entity[];
@@ -885,7 +885,7 @@ export default function GamePlayer() {
                     customPath: pDef.customPath,
                     customPaths: pDef.customPaths,
                     powerupId: pDef.id,
-                    createdAt: Date.now(),
+                    createdAt: performance.now(),
                   });
                 }
               }
