@@ -1,7 +1,8 @@
 import React, { useState, useRef, useEffect } from "react";
 import { useGameStore } from "../../store";
 import { LevelDef } from "../../types";
-import { Plus, Trash2, MousePointer2 } from "lucide-react";
+import { Plus, Trash2, MousePointer2, Layers } from "lucide-react";
+import BackgroundLayerEditor from "./BackgroundLayerEditor";
 
 export default function LevelEditor() {
   const { gameData, updateLevel, addLevel, deleteLevel } = useGameStore();
@@ -18,7 +19,7 @@ export default function LevelEditor() {
     gameData.powerups?.[0]?.id || "",
   );
   const [mode, setMode] = useState<
-    "select" | "place_enemy" | "place_obstacle" | "place_powerup"
+    "select" | "place_enemy" | "place_obstacle" | "place_powerup" | "edit_backgrounds"
   >("select");
   const [selectedEntityId, setSelectedEntityId] = useState<string | null>(null);
   const [selectedObstacleId, setSelectedObstacleId] = useState<string | null>(

@@ -129,6 +129,10 @@ export type SynthConfig = {
   filterType: "lowpass" | "highpass" | "bandpass";
   filterCutoff: number;
   filterResonance: number;
+  delay?: { time: number; feedback: number; mix: number };
+  reverb?: { decay: number; mix: number };
+  distortion?: { amount: number };
+  flanger?: { speed: number; depth: number; mix: number };
 };
 
 export type NoteDef = {
@@ -149,6 +153,7 @@ export type SoundEffectDef = {
 export type MusicChannelDef = {
   id: string;
   name: string;
+  type?: 'synth' | 'drum';
   synthConfig: SynthConfig;
   notes: NoteDef[];
 };
@@ -175,6 +180,23 @@ export type PowerupDef = {
   pickupParticles?: ParticleConfig;
 };
 
+export type UIConfig = {
+  menuTitle: string;
+  menuSubtitle: string;
+  menuBackgroundColor: string;
+  menuTextColor: string;
+  menuButtonColor: string;
+  menuButtonTextColor: string;
+  inGameHudColor: string;
+  gameOverTitle: string;
+  gameOverSubtitle: string;
+  gameOverTextColor: string;
+  victoryTitle: string;
+  victorySubtitle: string;
+  victoryTextColor: string;
+  endScreenBackgroundColor: string;
+};
+
 export type GameData = {
   weapons: WeaponDef[];
   enemies: EnemyDef[];
@@ -184,6 +206,7 @@ export type GameData = {
   storyNodes: StoryNode[];
   soundEffects: SoundEffectDef[];
   musicTracks: MusicTrackDef[];
+  uiConfig?: UIConfig;
   playerBaseStats: {
     health: number;
     speed: number;

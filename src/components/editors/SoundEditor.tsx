@@ -1,7 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useGameStore } from '../../store';
 import { SoundEffectDef, SynthConfig, NoteDef } from '../../types';
-import { Plus, Trash2, Play, Square } from 'lucide-react';
+import { Plus, Trash2, Play, Square, ZoomIn, ZoomOut } from 'lucide-react';
+import { Knob } from '../ui/Knob';
+import { Slider } from '../ui/Slider';
+import { PianoRoll } from '../ui/PianoRoll';
+import { applyEffects } from '../../utils/audio';
 
 const DEFAULT_SYNTH: SynthConfig = {
   oscillatorType: 'square',
@@ -9,15 +13,35 @@ const DEFAULT_SYNTH: SynthConfig = {
   volume: 0.5,
   filterType: 'lowpass',
   filterCutoff: 2000,
-  filterResonance: 1
+  filterResonance: 1,
+  delay: { time: 0.3, feedback: 0.3, mix: 0 },
+  reverb: { decay: 2, mix: 0 },
+  distortion: { amount: 0 }
 };
 
 export default function SoundEditor() {
   const { gameData, addSoundEffect, updateSoundEffect, deleteSoundEffect } = useGameStore();
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [audioCtx, setAudioCtx] = useState<AudioContext | null>(null);
+  
+  const [playheadTime, setPlayheadTime] = useState<number | null>(null);
+  const [zoom, setZoom] = useState(100); // pixels per second
+  const rafRef = useRef<number | null>(null);
+  const startTimeRef = useRef<number | null>(null);
   
   const soundEffects = gameData.soundEffects || [];
   const selectedSound = soundEffects.find(s => s.id === selectedId);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      if (audioCtx && audioCtx.state !== 'closed') {
+        audioCtx.close().catch(() => {});
+      }
+    };
+  }, [audioCtx]);
 
   const handleAdd = () => {
     const newSound: SoundEffectDef = {
@@ -32,7 +56,17 @@ export default function SoundEditor() {
   };
 
   const playSound = (sound: SoundEffectDef) => {
+    if (audioCtx && audioCtx.state !== 'closed') {
+      audioCtx.close().catch(() => {});
+    }
     const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+    setAudioCtx(ctx);
+    setIsPlaying(true);
+    
+    const masterGain = ctx.createGain();
+    masterGain.gain.value = 1;
+    
+    applyEffects(ctx, sound.synthConfig, masterGain, ctx.destination);
     
     sound.notes.forEach(note => {
       const osc = ctx.createOscillator();
@@ -57,17 +91,44 @@ export default function SoundEditor() {
       
       osc.connect(filter);
       filter.connect(gain);
-      gain.connect(ctx.destination);
+      gain.connect(masterGain);
       
       osc.start(t);
       osc.stop(t + note.duration + env.release);
     });
     
+    startTimeRef.current = ctx.currentTime;
+    const updatePlayhead = () => {
+      if (ctx.state === 'closed') return;
+      const currentSec = ctx.currentTime - startTimeRef.current!;
+      if (currentSec > sound.duration) {
+        setPlayheadTime(null);
+        return;
+      }
+      setPlayheadTime(currentSec);
+      rafRef.current = requestAnimationFrame(updatePlayhead);
+    };
+    rafRef.current = requestAnimationFrame(updatePlayhead);
+
     setTimeout(() => {
+      setIsPlaying(false);
       if (ctx.state !== 'closed') {
         ctx.close().catch(() => {});
       }
-    }, (sound.duration + sound.synthConfig.envelope.release) * 1000 + 500);
+      setAudioCtx(null);
+      setPlayheadTime(null);
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    }, (sound.duration + sound.synthConfig.envelope.release + 5) * 1000); // +5s for reverb/delay tail
+  };
+
+  const stopSound = () => {
+    if (audioCtx && audioCtx.state !== 'closed') {
+      audioCtx.close().catch(() => {});
+      setAudioCtx(null);
+    }
+    setIsPlaying(false);
+    setPlayheadTime(null);
+    if (rafRef.current) cancelAnimationFrame(rafRef.current);
   };
 
   return (
@@ -110,23 +171,39 @@ export default function SoundEditor() {
                 />
                 <p className="text-sm text-zinc-500 font-mono">{selectedSound.id}</p>
               </div>
-              <div className="flex gap-2">
-                <button 
-                  onClick={() => playSound(selectedSound)}
-                  className="p-2 bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 rounded flex items-center gap-2"
-                >
-                  <Play size={20} /> Play
-                </button>
-                <button 
-                  onClick={() => { deleteSoundEffect(selectedSound.id); setSelectedId(null); }}
-                  className="p-2 text-red-400 hover:bg-red-400/10 rounded"
-                >
-                  <Trash2 size={20} />
-                </button>
+              <div className="flex gap-4 items-center">
+                <div className="flex items-center gap-2 bg-zinc-900/50 p-1 rounded border border-zinc-800">
+                  <button onClick={() => setZoom(Math.max(20, zoom - 20))} className="p-1 text-zinc-400 hover:text-zinc-200"><ZoomOut size={16} /></button>
+                  <span className="text-xs text-zinc-500 w-12 text-center">{zoom}px</span>
+                  <button onClick={() => setZoom(Math.min(400, zoom + 20))} className="p-1 text-zinc-400 hover:text-zinc-200"><ZoomIn size={16} /></button>
+                </div>
+                <div className="flex gap-2">
+                  {!isPlaying ? (
+                    <button 
+                      onClick={() => playSound(selectedSound)}
+                      className="p-2 bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 rounded flex items-center gap-2"
+                    >
+                      <Play size={20} /> Play
+                    </button>
+                  ) : (
+                    <button 
+                      onClick={stopSound}
+                      className="p-2 bg-red-500/20 text-red-400 hover:bg-red-500/30 rounded flex items-center gap-2"
+                    >
+                      <Square size={20} /> Stop
+                    </button>
+                  )}
+                  <button 
+                    onClick={() => { deleteSoundEffect(selectedSound.id); setSelectedId(null); }}
+                    className="p-2 text-red-400 hover:bg-red-400/10 rounded"
+                  >
+                    <Trash2 size={20} />
+                  </button>
+                </div>
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-6">
+            <div className="grid grid-cols-3 gap-6">
               {/* Synth Config */}
               <div className="space-y-4 p-4 border border-zinc-800 rounded bg-zinc-900/50">
                 <h3 className="text-sm font-semibold text-zinc-400 uppercase">Synthesizer</h3>
@@ -145,23 +222,15 @@ export default function SoundEditor() {
                   </select>
                 </div>
 
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="space-y-1">
-                    <label className="text-xs text-zinc-500 uppercase">Attack (s)</label>
-                    <input type="number" step="0.01" value={selectedSound.synthConfig.envelope.attack} onChange={e => updateSoundEffect({ ...selectedSound, synthConfig: { ...selectedSound.synthConfig, envelope: { ...selectedSound.synthConfig.envelope, attack: Number(e.target.value) } } })} className="w-full bg-zinc-950 border border-zinc-800 rounded px-2 py-1 text-sm" />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-xs text-zinc-500 uppercase">Decay (s)</label>
-                    <input type="number" step="0.01" value={selectedSound.synthConfig.envelope.decay} onChange={e => updateSoundEffect({ ...selectedSound, synthConfig: { ...selectedSound.synthConfig, envelope: { ...selectedSound.synthConfig.envelope, decay: Number(e.target.value) } } })} className="w-full bg-zinc-950 border border-zinc-800 rounded px-2 py-1 text-sm" />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-xs text-zinc-500 uppercase">Sustain (0-1)</label>
-                    <input type="number" step="0.1" value={selectedSound.synthConfig.envelope.sustain} onChange={e => updateSoundEffect({ ...selectedSound, synthConfig: { ...selectedSound.synthConfig, envelope: { ...selectedSound.synthConfig.envelope, sustain: Number(e.target.value) } } })} className="w-full bg-zinc-950 border border-zinc-800 rounded px-2 py-1 text-sm" />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-xs text-zinc-500 uppercase">Release (s)</label>
-                    <input type="number" step="0.01" value={selectedSound.synthConfig.envelope.release} onChange={e => updateSoundEffect({ ...selectedSound, synthConfig: { ...selectedSound.synthConfig, envelope: { ...selectedSound.synthConfig.envelope, release: Number(e.target.value) } } })} className="w-full bg-zinc-950 border border-zinc-800 rounded px-2 py-1 text-sm" />
-                  </div>
+                <div className="pt-4">
+                  <Slider label="Volume" value={selectedSound.synthConfig.volume} min={0} max={1} step={0.01} onChange={v => updateSoundEffect({ ...selectedSound, synthConfig: { ...selectedSound.synthConfig, volume: v } })} />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4 pt-4">
+                  <Knob label="Attack" value={selectedSound.synthConfig.envelope.attack} min={0} max={2} step={0.01} unit="s" onChange={v => updateSoundEffect({ ...selectedSound, synthConfig: { ...selectedSound.synthConfig, envelope: { ...selectedSound.synthConfig.envelope, attack: v } } })} />
+                  <Knob label="Decay" value={selectedSound.synthConfig.envelope.decay} min={0} max={2} step={0.01} unit="s" onChange={v => updateSoundEffect({ ...selectedSound, synthConfig: { ...selectedSound.synthConfig, envelope: { ...selectedSound.synthConfig.envelope, decay: v } } })} />
+                  <Knob label="Sustain" value={selectedSound.synthConfig.envelope.sustain} min={0} max={1} step={0.01} onChange={v => updateSoundEffect({ ...selectedSound, synthConfig: { ...selectedSound.synthConfig, envelope: { ...selectedSound.synthConfig.envelope, sustain: v } } })} />
+                  <Knob label="Release" value={selectedSound.synthConfig.envelope.release} min={0} max={5} step={0.01} unit="s" onChange={v => updateSoundEffect({ ...selectedSound, synthConfig: { ...selectedSound.synthConfig, envelope: { ...selectedSound.synthConfig.envelope, release: v } } })} />
                 </div>
               </div>
 
@@ -182,16 +251,47 @@ export default function SoundEditor() {
                   </select>
                 </div>
 
-                <div className="space-y-1">
-                  <label className="text-xs text-zinc-500 uppercase">Cutoff (Hz)</label>
-                  <input type="range" min="20" max="20000" value={selectedSound.synthConfig.filterCutoff} onChange={e => updateSoundEffect({ ...selectedSound, synthConfig: { ...selectedSound.synthConfig, filterCutoff: Number(e.target.value) } })} className="w-full" />
-                  <div className="text-xs text-zinc-400 text-right">{selectedSound.synthConfig.filterCutoff} Hz</div>
+                <div className="pt-4 space-y-6">
+                  <Slider label="Cutoff" value={selectedSound.synthConfig.filterCutoff} min={20} max={20000} step={1} unit="Hz" onChange={v => updateSoundEffect({ ...selectedSound, synthConfig: { ...selectedSound.synthConfig, filterCutoff: v } })} />
+                  <Slider label="Resonance" value={selectedSound.synthConfig.filterResonance} min={0} max={20} step={0.1} onChange={v => updateSoundEffect({ ...selectedSound, synthConfig: { ...selectedSound.synthConfig, filterResonance: v } })} />
                 </div>
+              </div>
 
-                <div className="space-y-1">
-                  <label className="text-xs text-zinc-500 uppercase">Resonance (Q)</label>
-                  <input type="range" min="0" max="20" step="0.1" value={selectedSound.synthConfig.filterResonance} onChange={e => updateSoundEffect({ ...selectedSound, synthConfig: { ...selectedSound.synthConfig, filterResonance: Number(e.target.value) } })} className="w-full" />
-                  <div className="text-xs text-zinc-400 text-right">{selectedSound.synthConfig.filterResonance}</div>
+              {/* Effects Config */}
+              <div className="space-y-4 p-4 border border-zinc-800 rounded bg-zinc-900/50">
+                <h3 className="text-sm font-semibold text-zinc-400 uppercase">Effects</h3>
+                
+                <div className="space-y-4">
+                  <div className="border-b border-zinc-800 pb-4">
+                    <div className="text-xs text-zinc-500 uppercase font-semibold mb-2">Delay</div>
+                    <div className="grid grid-cols-3 gap-2">
+                      <Knob size={40} label="Time" value={selectedSound.synthConfig.delay?.time || 0} min={0} max={1} step={0.01} unit="s" onChange={v => updateSoundEffect({ ...selectedSound, synthConfig: { ...selectedSound.synthConfig, delay: { ...(selectedSound.synthConfig.delay || { feedback: 0, mix: 0 }), time: v } } })} />
+                      <Knob size={40} label="F.Back" value={selectedSound.synthConfig.delay?.feedback || 0} min={0} max={0.9} step={0.01} onChange={v => updateSoundEffect({ ...selectedSound, synthConfig: { ...selectedSound.synthConfig, delay: { ...(selectedSound.synthConfig.delay || { time: 0, mix: 0 }), feedback: v } } })} />
+                      <Knob size={40} label="Mix" value={selectedSound.synthConfig.delay?.mix || 0} min={0} max={1} step={0.01} onChange={v => updateSoundEffect({ ...selectedSound, synthConfig: { ...selectedSound.synthConfig, delay: { ...(selectedSound.synthConfig.delay || { time: 0, feedback: 0 }), mix: v } } })} />
+                    </div>
+                  </div>
+
+                  <div className="border-b border-zinc-800 pb-4">
+                    <div className="text-xs text-zinc-500 uppercase font-semibold mb-2">Reverb</div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <Knob size={40} label="Decay" value={selectedSound.synthConfig.reverb?.decay || 0} min={0.1} max={10} step={0.1} unit="s" onChange={v => updateSoundEffect({ ...selectedSound, synthConfig: { ...selectedSound.synthConfig, reverb: { ...(selectedSound.synthConfig.reverb || { mix: 0 }), decay: v } } })} />
+                      <Knob size={40} label="Mix" value={selectedSound.synthConfig.reverb?.mix || 0} min={0} max={1} step={0.01} onChange={v => updateSoundEffect({ ...selectedSound, synthConfig: { ...selectedSound.synthConfig, reverb: { ...(selectedSound.synthConfig.reverb || { decay: 2 }), mix: v } } })} />
+                    </div>
+                  </div>
+
+                  <div className="border-b border-zinc-800 pb-4">
+                    <div className="text-xs text-zinc-500 uppercase font-semibold mb-2">Distortion</div>
+                    <Slider label="Amount" value={selectedSound.synthConfig.distortion?.amount || 0} min={0} max={100} step={1} onChange={v => updateSoundEffect({ ...selectedSound, synthConfig: { ...selectedSound.synthConfig, distortion: { amount: v } } })} />
+                  </div>
+
+                  <div>
+                    <div className="text-xs text-zinc-500 uppercase font-semibold mb-2">Flanger</div>
+                    <div className="grid grid-cols-3 gap-2">
+                      <Knob size={40} label="Speed" value={selectedSound.synthConfig.flanger?.speed || 0} min={0.1} max={10} step={0.1} unit="Hz" onChange={v => updateSoundEffect({ ...selectedSound, synthConfig: { ...selectedSound.synthConfig, flanger: { ...(selectedSound.synthConfig.flanger || { depth: 0, mix: 0 }), speed: v } } })} />
+                      <Knob size={40} label="Depth" value={selectedSound.synthConfig.flanger?.depth || 0} min={0} max={1} step={0.01} onChange={v => updateSoundEffect({ ...selectedSound, synthConfig: { ...selectedSound.synthConfig, flanger: { ...(selectedSound.synthConfig.flanger || { speed: 0.1, mix: 0 }), depth: v } } })} />
+                      <Knob size={40} label="Mix" value={selectedSound.synthConfig.flanger?.mix || 0} min={0} max={1} step={0.01} onChange={v => updateSoundEffect({ ...selectedSound, synthConfig: { ...selectedSound.synthConfig, flanger: { ...(selectedSound.synthConfig.flanger || { speed: 0.1, depth: 0 }), mix: v } } })} />
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -199,57 +299,38 @@ export default function SoundEditor() {
             {/* Piano Roll / Notes */}
             <div className="space-y-4 p-4 border border-zinc-800 rounded bg-zinc-900/50">
               <div className="flex justify-between items-center">
-                <h3 className="text-sm font-semibold text-zinc-400 uppercase">Notes (Piano Roll)</h3>
-                <button 
-                  onClick={() => {
-                    const newNotes = [...selectedSound.notes, { pitch: 60, time: selectedSound.duration, duration: 0.1, velocity: 1 }];
-                    updateSoundEffect({ ...selectedSound, notes: newNotes, duration: selectedSound.duration + 0.1 });
-                  }}
-                  className="text-xs bg-zinc-800 hover:bg-zinc-700 px-2 py-1 rounded text-zinc-300"
-                >
-                  + Add Note
-                </button>
+                <h3 className="text-sm font-semibold text-zinc-400 uppercase">Piano Roll</h3>
+                <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-2">
+                    <label className="text-xs text-zinc-500 uppercase">Duration (s)</label>
+                    <input 
+                      type="number" 
+                      step="0.1" 
+                      min="0.1" 
+                      max="10"
+                      value={selectedSound.duration} 
+                      onChange={e => updateSoundEffect({ ...selectedSound, duration: Number(e.target.value) })} 
+                      className="w-16 bg-zinc-950 border border-zinc-800 rounded px-2 py-1 text-xs" 
+                    />
+                  </div>
+                </div>
               </div>
               
-              <div className="space-y-2">
-                {selectedSound.notes.map((note, idx) => (
-                  <div key={idx} className="flex gap-2 items-center bg-zinc-950 p-2 rounded border border-zinc-800">
-                    <div className="w-8 text-xs text-zinc-500 text-center">#{idx+1}</div>
-                    <div className="flex-1 space-y-1">
-                      <label className="text-[10px] text-zinc-500 uppercase">Pitch (MIDI)</label>
-                      <input type="number" value={note.pitch} onChange={e => {
-                        const newNotes = [...selectedSound.notes];
-                        newNotes[idx].pitch = Number(e.target.value);
-                        updateSoundEffect({ ...selectedSound, notes: newNotes });
-                      }} className="w-full bg-zinc-900 border border-zinc-800 rounded px-2 py-1 text-xs" />
-                    </div>
-                    <div className="flex-1 space-y-1">
-                      <label className="text-[10px] text-zinc-500 uppercase">Time (s)</label>
-                      <input type="number" step="0.05" value={note.time} onChange={e => {
-                        const newNotes = [...selectedSound.notes];
-                        newNotes[idx].time = Number(e.target.value);
-                        updateSoundEffect({ ...selectedSound, notes: newNotes });
-                      }} className="w-full bg-zinc-900 border border-zinc-800 rounded px-2 py-1 text-xs" />
-                    </div>
-                    <div className="flex-1 space-y-1">
-                      <label className="text-[10px] text-zinc-500 uppercase">Duration (s)</label>
-                      <input type="number" step="0.05" value={note.duration} onChange={e => {
-                        const newNotes = [...selectedSound.notes];
-                        newNotes[idx].duration = Number(e.target.value);
-                        updateSoundEffect({ ...selectedSound, notes: newNotes });
-                      }} className="w-full bg-zinc-900 border border-zinc-800 rounded px-2 py-1 text-xs" />
-                    </div>
-                    <button 
-                      onClick={() => {
-                        const newNotes = selectedSound.notes.filter((_, i) => i !== idx);
-                        updateSoundEffect({ ...selectedSound, notes: newNotes });
-                      }}
-                      className="p-1.5 text-zinc-500 hover:text-red-400 mt-4"
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  </div>
-                ))}
+              <div className="bg-zinc-950 p-2 rounded border border-zinc-800">
+                <PianoRoll 
+                  notes={selectedSound.notes} 
+                  onChange={notes => updateSoundEffect({ ...selectedSound, notes })} 
+                  duration={selectedSound.duration} 
+                  minPitch={24}
+                  maxPitch={96}
+                  pixelsPerUnit={zoom} // Dynamic zoom
+                  snapStep={0.05} // Snap to 0.05s
+                  playheadTime={playheadTime}
+                  height={300}
+                />
+              </div>
+              <div className="text-xs text-zinc-500">
+                Click to add note. Drag to move. Drag right edge to resize. Right-click to delete.
               </div>
             </div>
 

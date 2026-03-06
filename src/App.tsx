@@ -10,9 +10,10 @@ import ObstacleEditor from './components/editors/ObstacleEditor';
 import PowerupEditor from './components/editors/PowerupEditor';
 import SoundEditor from './components/editors/SoundEditor';
 import MusicEditor from './components/editors/MusicEditor';
+import UIEditor from './components/editors/UIEditor';
 import GamePlayer from './components/GamePlayer';
 
-type ViewMode = 'play' | 'weapons' | 'enemies' | 'levels' | 'story' | 'player' | 'obstacles' | 'powerups' | 'sounds' | 'music';
+type ViewMode = 'play' | 'weapons' | 'enemies' | 'levels' | 'story' | 'player' | 'obstacles' | 'powerups' | 'sounds' | 'music' | 'ui';
 
 export default function App() {
   const [viewMode, setViewMode] = useState<ViewMode>('play');
@@ -49,7 +50,7 @@ export default function App() {
       {/* Sidebar */}
       <div className="w-64 bg-zinc-900 border-r border-zinc-800 flex flex-col">
         <div className="p-4 border-b border-zinc-800">
-          <h1 className="text-xl font-bold text-emerald-400 tracking-tight">Vector Engine</h1>
+          <h1 className="text-xl font-bold text-emerald-400 tracking-tight">Vector Shmup Studio</h1>
           <p className="text-xs text-zinc-500 mt-1">v0.1.0-alpha</p>
         </div>
         
@@ -59,6 +60,7 @@ export default function App() {
             <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">Editors</p>
           </div>
           <NavItem icon={<BookOpen size={18} />} label="Story / Branches" active={viewMode === 'story'} onClick={() => setViewMode('story')} />
+          <NavItem icon={<PenTool size={18} />} label="Menu & UI" active={viewMode === 'ui'} onClick={() => setViewMode('ui')} />
           <NavItem icon={<PenTool size={18} />} label="Levels" active={viewMode === 'levels'} onClick={() => setViewMode('levels')} />
           <NavItem icon={<Skull size={18} />} label="Enemies" active={viewMode === 'enemies'} onClick={() => setViewMode('enemies')} />
           <NavItem icon={<Crosshair size={18} />} label="Weapons" active={viewMode === 'weapons'} onClick={() => setViewMode('weapons')} />
@@ -92,6 +94,7 @@ export default function App() {
         {viewMode === 'powerups' && <PowerupEditor />}
         {viewMode === 'sounds' && <SoundEditor />}
         {viewMode === 'music' && <MusicEditor />}
+        {viewMode === 'ui' && <UIEditor />}
       </div>
     </div>
   );

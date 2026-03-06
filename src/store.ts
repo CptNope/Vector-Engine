@@ -9,6 +9,7 @@ import {
   MusicTrackDef,
   ObstacleDef,
   PowerupDef,
+  UIConfig,
 } from "./types";
 
 interface GameStore {
@@ -39,6 +40,7 @@ interface GameStore {
   addMusicTrack: (track: MusicTrackDef) => void;
   deleteMusicTrack: (id: string) => void;
   updatePlayerStats: (stats: Partial<GameData["playerBaseStats"]>) => void;
+  updateUIConfig: (config: Partial<UIConfig>) => void;
   setStartNode: (id: string | null) => void;
   setStartLevel: (id: string | null) => void;
 }
@@ -544,6 +546,22 @@ const initialGameData: GameData = {
   },
   startStoryNodeId: "s_1",
   startLevelId: null,
+  uiConfig: {
+    menuTitle: "VECTOR SHMUP STUDIO",
+    menuSubtitle: "A Retro Vector Shooter",
+    menuBackgroundColor: "#09090b",
+    menuTextColor: "#34d399",
+    menuButtonColor: "#10b981",
+    menuButtonTextColor: "#09090b",
+    inGameHudColor: "#34d399",
+    gameOverTitle: "GAME OVER",
+    gameOverSubtitle: "The galaxy has fallen.",
+    gameOverTextColor: "#ef4444",
+    victoryTitle: "VICTORY",
+    victorySubtitle: "The galaxy is safe once more.",
+    victoryTextColor: "#34d399",
+    endScreenBackgroundColor: "#09090b",
+  },
 };
 
 export const useGameStore = create<GameStore>((set) => ({
@@ -738,6 +756,13 @@ export const useGameStore = create<GameStore>((set) => ({
       gameData: {
         ...state.gameData,
         playerBaseStats: { ...state.gameData.playerBaseStats, ...stats },
+      },
+    })),
+  updateUIConfig: (config) =>
+    set((state) => ({
+      gameData: {
+        ...state.gameData,
+        uiConfig: { ...state.gameData.uiConfig, ...config } as UIConfig,
       },
     })),
   setStartNode: (id) =>

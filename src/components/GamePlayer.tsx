@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useGameStore } from "../store";
+import { applyEffects, playSynthNote, playDrumNote } from "../utils/audio";
 import {
   GameData,
   LevelDef,
@@ -173,43 +174,13 @@ export default function GamePlayer() {
     if (!sound) return;
 
     const ctx = audioCtxRef.current;
+    
+    const masterGain = ctx.createGain();
+    masterGain.gain.value = 1;
+    applyEffects(ctx, sound.synthConfig, masterGain, ctx.destination);
 
     sound.notes.forEach((note) => {
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      const filter = ctx.createBiquadFilter();
-
-      osc.type = sound.synthConfig.oscillatorType;
-      osc.frequency.value = 440 * Math.pow(2, (note.pitch - 69) / 12);
-
-      filter.type = sound.synthConfig.filterType;
-      filter.frequency.value = sound.synthConfig.filterCutoff;
-      filter.Q.value = sound.synthConfig.filterResonance;
-
-      const t = ctx.currentTime + note.time;
-      const env = sound.synthConfig.envelope;
-
-      gain.gain.setValueAtTime(0, t);
-      gain.gain.linearRampToValueAtTime(
-        sound.synthConfig.volume * note.velocity,
-        t + env.attack,
-      );
-      gain.gain.linearRampToValueAtTime(
-        sound.synthConfig.volume * note.velocity * env.sustain,
-        t + env.attack + env.decay,
-      );
-      gain.gain.setValueAtTime(
-        sound.synthConfig.volume * note.velocity * env.sustain,
-        t + note.duration,
-      );
-      gain.gain.linearRampToValueAtTime(0, t + note.duration + env.release);
-
-      osc.connect(filter);
-      filter.connect(gain);
-      gain.connect(ctx.destination);
-
-      osc.start(t);
-      osc.stop(t + note.duration + env.release);
+      const osc = playSynthNote(ctx, note, sound.synthConfig, masterGain, 1);
 
       activeOscillatorsRef.current.push(osc);
 
@@ -245,55 +216,29 @@ export default function GamePlayer() {
       const loopOffset = loop * trackDuration * beatDuration;
 
       track.channels.forEach((channel) => {
+        const masterGain = ctx.createGain();
+        masterGain.gain.value = 1;
+        applyEffects(ctx, channel.synthConfig, masterGain, ctx.destination);
+
         channel.notes.forEach((note) => {
-          const osc = ctx.createOscillator();
-          const gain = ctx.createGain();
-          const filter = ctx.createBiquadFilter();
+          const timeOffset = loopOffset / beatDuration;
+          const adjustedNote = { ...note, time: note.time + timeOffset };
+          
+          let oscs: AudioScheduledSourceNode[] = [];
+          if (channel.type === 'drum') {
+            oscs = playDrumNote(ctx, adjustedNote, masterGain, beatDuration);
+          } else {
+            oscs = [playSynthNote(ctx, adjustedNote, channel.synthConfig, masterGain, beatDuration)];
+          }
 
-          osc.type = channel.synthConfig.oscillatorType;
-          osc.frequency.value = 440 * Math.pow(2, (note.pitch - 69) / 12);
-
-          filter.type = channel.synthConfig.filterType;
-          filter.frequency.value = channel.synthConfig.filterCutoff;
-          filter.Q.value = channel.synthConfig.filterResonance;
-
-          const startTime =
-            ctx.currentTime + loopOffset + note.time * beatDuration;
-          const duration = note.duration * beatDuration;
-          const env = channel.synthConfig.envelope;
-
-          gain.gain.setValueAtTime(0, startTime);
-          gain.gain.linearRampToValueAtTime(
-            channel.synthConfig.volume * note.velocity,
-            startTime + env.attack,
-          );
-          gain.gain.linearRampToValueAtTime(
-            channel.synthConfig.volume * note.velocity * env.sustain,
-            startTime + env.attack + env.decay,
-          );
-          gain.gain.setValueAtTime(
-            channel.synthConfig.volume * note.velocity * env.sustain,
-            startTime + duration,
-          );
-          gain.gain.linearRampToValueAtTime(
-            0,
-            startTime + duration + env.release,
-          );
-
-          osc.connect(filter);
-          filter.connect(gain);
-          gain.connect(ctx.destination);
-
-          osc.start(startTime);
-          osc.stop(startTime + duration + env.release);
-
-          activeOscillatorsRef.current.push(osc);
-
-          osc.onended = () => {
-            activeOscillatorsRef.current = activeOscillatorsRef.current.filter(
-              (o) => o !== osc,
-            );
-          };
+          oscs.forEach(osc => {
+            activeOscillatorsRef.current.push(osc);
+            osc.onended = () => {
+              activeOscillatorsRef.current = activeOscillatorsRef.current.filter(
+                (o) => o !== osc,
+              );
+            };
+          });
         });
       });
     }
@@ -1193,16 +1138,53 @@ export default function GamePlayer() {
   }, []);
 
   // UI Renderers
+  const uiConfig = gameData.uiConfig || {
+    menuTitle: "VECTOR SHMUP STUDIO",
+    menuSubtitle: "A Retro Vector Shooter",
+    menuBackgroundColor: "#09090b",
+    menuTextColor: "#34d399",
+    menuButtonColor: "#10b981",
+    menuButtonTextColor: "#09090b",
+    inGameHudColor: "#34d399",
+    gameOverTitle: "GAME OVER",
+    gameOverSubtitle: "The galaxy has fallen.",
+    gameOverTextColor: "#ef4444",
+    victoryTitle: "VICTORY",
+    victorySubtitle: "The galaxy is safe once more.",
+    victoryTextColor: "#34d399",
+    endScreenBackgroundColor: "#09090b",
+  };
+
   if (gameState === "menu") {
     return (
-      <div className="flex h-full items-center justify-center bg-zinc-950">
+      <div 
+        className="flex h-full items-center justify-center"
+        style={{ backgroundColor: uiConfig.menuBackgroundColor }}
+      >
         <div className="text-center space-y-6">
-          <h1 className="text-5xl font-bold text-emerald-400 tracking-tighter">
-            VECTOR ENGINE
-          </h1>
+          <div className="space-y-2">
+            <h1 
+              className="text-5xl font-bold tracking-tighter"
+              style={{ color: uiConfig.menuTextColor }}
+            >
+              {uiConfig.menuTitle}
+            </h1>
+            {uiConfig.menuSubtitle && (
+              <p 
+                className="text-xl opacity-80"
+                style={{ color: uiConfig.menuTextColor }}
+              >
+                {uiConfig.menuSubtitle}
+              </p>
+            )}
+          </div>
           <button
             onClick={startGame}
-            className="px-8 py-3 bg-emerald-500 hover:bg-emerald-400 text-zinc-950 font-bold rounded-full text-lg transition-transform hover:scale-105"
+            className="px-8 py-3 font-bold rounded-full text-lg transition-transform hover:scale-105"
+            style={{ 
+              backgroundColor: uiConfig.menuButtonColor,
+              color: uiConfig.menuButtonTextColor
+            }}
           >
             START GAME
           </button>
@@ -1256,18 +1238,41 @@ export default function GamePlayer() {
   }
 
   if (gameState === "gameover" || gameState === "victory") {
+    const isVictory = gameState === "victory";
+    const title = isVictory ? uiConfig.victoryTitle : uiConfig.gameOverTitle;
+    const subtitle = isVictory ? uiConfig.victorySubtitle : uiConfig.gameOverSubtitle;
+    const textColor = isVictory ? uiConfig.victoryTextColor : uiConfig.gameOverTextColor;
+
     return (
-      <div className="flex h-full items-center justify-center bg-zinc-950">
+      <div 
+        className="flex h-full items-center justify-center"
+        style={{ backgroundColor: uiConfig.endScreenBackgroundColor }}
+      >
         <div className="text-center space-y-6">
-          <h1
-            className={`text-5xl font-bold ${gameState === "victory" ? "text-emerald-400" : "text-red-500"}`}
-          >
-            {gameState === "victory" ? "VICTORY" : "GAME OVER"}
-          </h1>
+          <div className="space-y-2">
+            <h1 
+              className="text-5xl font-bold tracking-tighter"
+              style={{ color: textColor }}
+            >
+              {title}
+            </h1>
+            {subtitle && (
+              <p 
+                className="text-xl opacity-80"
+                style={{ color: textColor }}
+              >
+                {subtitle}
+              </p>
+            )}
+          </div>
           <p className="text-xl text-zinc-400">Final Score: {score}</p>
           <button
             onClick={() => setGameStateSafe("menu")}
-            className="px-8 py-3 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 font-bold rounded-full transition-colors"
+            className="px-8 py-3 font-bold rounded-full transition-colors"
+            style={{ 
+              backgroundColor: uiConfig.menuButtonColor,
+              color: uiConfig.menuButtonTextColor
+            }}
           >
             Return to Menu
           </button>
@@ -1279,19 +1284,26 @@ export default function GamePlayer() {
   return (
     <div className="flex h-full flex-col bg-zinc-950 relative">
       <div className="absolute top-0 left-0 w-full p-4 flex justify-between items-center pointer-events-none z-10">
-        <div className="text-emerald-400 font-mono text-xl font-bold">
+        <div 
+          className="font-mono text-xl font-bold"
+          style={{ color: uiConfig.inGameHudColor }}
+        >
           SCORE: {score}
         </div>
         <div className="flex items-center gap-2">
           <div className="w-48 h-4 bg-zinc-800 rounded-full overflow-hidden border border-zinc-700">
             <div
-              className="h-full bg-emerald-500 transition-all"
+              className="h-full transition-all"
               style={{
                 width: `${Math.max(0, (playerHealth / gameData.playerBaseStats.health) * 100)}%`,
+                backgroundColor: uiConfig.inGameHudColor
               }}
             />
           </div>
-          <span className="text-emerald-400 font-mono text-sm">
+          <span 
+            className="font-mono text-sm"
+            style={{ color: uiConfig.inGameHudColor }}
+          >
             {Math.max(0, playerHealth)} HP
           </span>
         </div>

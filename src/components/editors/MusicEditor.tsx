@@ -1,7 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useGameStore } from '../../store';
 import { MusicTrackDef, MusicChannelDef, SynthConfig, NoteDef } from '../../types';
-import { Plus, Trash2, Play, Square, ChevronDown, ChevronRight } from 'lucide-react';
+import { Plus, Trash2, Play, Square, ChevronDown, ChevronRight, ZoomIn, ZoomOut } from 'lucide-react';
+import { Knob } from '../ui/Knob';
+import { Slider } from '../ui/Slider';
+import { PianoRoll } from '../ui/PianoRoll';
+import { StepSequencer } from '../ui/StepSequencer';
+import { applyEffects, playSynthNote, playDrumNote } from '../../utils/audio';
 
 const DEFAULT_SYNTH: SynthConfig = {
   oscillatorType: 'square',
@@ -9,7 +14,10 @@ const DEFAULT_SYNTH: SynthConfig = {
   volume: 0.3,
   filterType: 'lowpass',
   filterCutoff: 2000,
-  filterResonance: 1
+  filterResonance: 1,
+  delay: { time: 0.3, feedback: 0.3, mix: 0 },
+  reverb: { decay: 2, mix: 0 },
+  distortion: { amount: 0 }
 };
 
 export default function MusicEditor() {
@@ -19,8 +27,23 @@ export default function MusicEditor() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [audioCtx, setAudioCtx] = useState<AudioContext | null>(null);
   
+  const [playheadTime, setPlayheadTime] = useState<number | null>(null);
+  const [zoom, setZoom] = useState(50); // pixels per beat
+  const rafRef = useRef<number | null>(null);
+  const startTimeRef = useRef<number | null>(null);
+  
   const musicTracks = gameData.musicTracks || [];
   const selectedTrack = musicTracks.find(t => t.id === selectedId);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      if (audioCtx && audioCtx.state !== 'closed') {
+        audioCtx.close().catch(() => {});
+      }
+    };
+  }, [audioCtx]);
 
   const handleAdd = () => {
     const newTrack: MusicTrackDef = {
@@ -53,34 +76,16 @@ export default function MusicEditor() {
     let maxTime = 0;
 
     track.channels.forEach(channel => {
+      const masterGain = ctx.createGain();
+      masterGain.gain.value = 1;
+      applyEffects(ctx, channel.synthConfig, masterGain, ctx.destination);
+
       channel.notes.forEach(note => {
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        const filter = ctx.createBiquadFilter();
-        
-        osc.type = channel.synthConfig.oscillatorType;
-        osc.frequency.value = 440 * Math.pow(2, (note.pitch - 69) / 12);
-        
-        filter.type = channel.synthConfig.filterType;
-        filter.frequency.value = channel.synthConfig.filterCutoff;
-        filter.Q.value = channel.synthConfig.filterResonance;
-        
-        const startTime = ctx.currentTime + (note.time * beatDuration);
-        const duration = note.duration * beatDuration;
-        const env = channel.synthConfig.envelope;
-        
-        gain.gain.setValueAtTime(0, startTime);
-        gain.gain.linearRampToValueAtTime(channel.synthConfig.volume * note.velocity, startTime + env.attack);
-        gain.gain.linearRampToValueAtTime(channel.synthConfig.volume * note.velocity * env.sustain, startTime + env.attack + env.decay);
-        gain.gain.setValueAtTime(channel.synthConfig.volume * note.velocity * env.sustain, startTime + duration);
-        gain.gain.linearRampToValueAtTime(0, startTime + duration + env.release);
-        
-        osc.connect(filter);
-        filter.connect(gain);
-        gain.connect(ctx.destination);
-        
-        osc.start(startTime);
-        osc.stop(startTime + duration + env.release);
+        if (channel.type === 'drum') {
+          playDrumNote(ctx, note, masterGain, beatDuration);
+        } else {
+          playSynthNote(ctx, note, channel.synthConfig, masterGain, beatDuration);
+        }
 
         if (note.time + note.duration > maxTime) {
           maxTime = note.time + note.duration;
@@ -88,12 +93,27 @@ export default function MusicEditor() {
       });
     });
     
+    startTimeRef.current = ctx.currentTime;
+    const updatePlayhead = () => {
+      if (ctx.state === 'closed') return;
+      const currentBeat = (ctx.currentTime - startTimeRef.current!) / beatDuration;
+      if (currentBeat > maxTime + 1) {
+        setPlayheadTime(null);
+        return;
+      }
+      setPlayheadTime(currentBeat);
+      rafRef.current = requestAnimationFrame(updatePlayhead);
+    };
+    rafRef.current = requestAnimationFrame(updatePlayhead);
+
     setTimeout(() => {
       setIsPlaying(false);
       if (ctx.state !== 'closed') {
         ctx.close().catch(() => {});
       }
       setAudioCtx(null);
+      setPlayheadTime(null);
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
     }, (maxTime * beatDuration + 2) * 1000); // 2 seconds padding
   };
 
@@ -103,13 +123,16 @@ export default function MusicEditor() {
       setAudioCtx(null);
     }
     setIsPlaying(false);
+    setPlayheadTime(null);
+    if (rafRef.current) cancelAnimationFrame(rafRef.current);
   };
 
-  const addChannel = () => {
+  const addChannel = (type: 'synth' | 'drum' = 'synth') => {
     if (!selectedTrack) return;
     const newChannel: MusicChannelDef = {
       id: `ch_${Date.now()}`,
-      name: `Channel ${selectedTrack.channels.length + 1}`,
+      name: type === 'drum' ? `Drums ${selectedTrack.channels.length + 1}` : `Synth ${selectedTrack.channels.length + 1}`,
+      type,
       synthConfig: { ...DEFAULT_SYNTH },
       notes: []
     };
@@ -180,28 +203,35 @@ export default function MusicEditor() {
                 />
                 <p className="text-sm text-zinc-500 font-mono">{selectedTrack.id}</p>
               </div>
-              <div className="flex gap-2">
-                {!isPlaying ? (
+              <div className="flex gap-4 items-center">
+                <div className="flex items-center gap-2 bg-zinc-900/50 p-1 rounded border border-zinc-800">
+                  <button onClick={() => setZoom(Math.max(20, zoom - 10))} className="p-1 text-zinc-400 hover:text-zinc-200"><ZoomOut size={16} /></button>
+                  <span className="text-xs text-zinc-500 w-12 text-center">{zoom}px</span>
+                  <button onClick={() => setZoom(Math.min(200, zoom + 10))} className="p-1 text-zinc-400 hover:text-zinc-200"><ZoomIn size={16} /></button>
+                </div>
+                <div className="flex gap-2">
+                  {!isPlaying ? (
+                    <button 
+                      onClick={() => playTrack(selectedTrack)}
+                      className="p-2 bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 rounded flex items-center gap-2"
+                    >
+                      <Play size={20} /> Play
+                    </button>
+                  ) : (
+                    <button 
+                      onClick={stopTrack}
+                      className="p-2 bg-red-500/20 text-red-400 hover:bg-red-500/30 rounded flex items-center gap-2"
+                    >
+                      <Square size={20} /> Stop
+                    </button>
+                  )}
                   <button 
-                    onClick={() => playTrack(selectedTrack)}
-                    className="p-2 bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 rounded flex items-center gap-2"
+                    onClick={() => { deleteMusicTrack(selectedTrack.id); setSelectedId(null); }}
+                    className="p-2 text-red-400 hover:bg-red-400/10 rounded"
                   >
-                    <Play size={20} /> Play
+                    <Trash2 size={20} />
                   </button>
-                ) : (
-                  <button 
-                    onClick={stopTrack}
-                    className="p-2 bg-red-500/20 text-red-400 hover:bg-red-500/30 rounded flex items-center gap-2"
-                  >
-                    <Square size={20} /> Stop
-                  </button>
-                )}
-                <button 
-                  onClick={() => { deleteMusicTrack(selectedTrack.id); setSelectedId(null); }}
-                  className="p-2 text-red-400 hover:bg-red-400/10 rounded"
-                >
-                  <Trash2 size={20} />
-                </button>
+                </div>
               </div>
             </div>
 
@@ -220,12 +250,20 @@ export default function MusicEditor() {
             <div className="space-y-4">
               <div className="flex justify-between items-center">
                 <h3 className="text-lg font-semibold text-zinc-100">Channels</h3>
-                <button 
-                  onClick={addChannel}
-                  className="px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded text-sm flex items-center gap-2"
-                >
-                  <Plus size={16} /> Add Channel
-                </button>
+                <div className="flex gap-2">
+                  <button 
+                    onClick={() => addChannel('synth')}
+                    className="px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded text-sm flex items-center gap-2"
+                  >
+                    <Plus size={16} /> Add Synth
+                  </button>
+                  <button 
+                    onClick={() => addChannel('drum')}
+                    className="px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded text-sm flex items-center gap-2"
+                  >
+                    <Plus size={16} /> Add Drums
+                  </button>
+                </div>
               </div>
 
               {selectedTrack.channels.map(channel => (
@@ -254,48 +292,35 @@ export default function MusicEditor() {
 
                   {expandedChannels[channel.id] && (
                     <div className="p-4 border-t border-zinc-800 space-y-6">
-                      <div className="grid grid-cols-2 gap-6">
-                        {/* Synth Config */}
-                        <div className="space-y-4">
-                          <h4 className="text-xs font-semibold text-zinc-500 uppercase">Synthesizer</h4>
+                      {channel.type !== 'drum' && (
+                        <div className="grid grid-cols-3 gap-6">
+                          {/* Synth Config */}
+                          <div className="space-y-4">
+                            <h4 className="text-xs font-semibold text-zinc-500 uppercase">Synthesizer</h4>
                           
-                          <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-1">
-                              <label className="text-[10px] text-zinc-500 uppercase">Oscillator Type</label>
-                              <select 
-                                value={channel.synthConfig.oscillatorType}
-                                onChange={e => updateChannel(channel.id, { synthConfig: { ...channel.synthConfig, oscillatorType: e.target.value as any } })}
-                                className="w-full bg-zinc-950 border border-zinc-800 rounded px-2 py-1 text-xs focus:outline-none focus:border-emerald-500"
-                              >
-                                <option value="sine">Sine</option>
-                                <option value="square">Square</option>
-                                <option value="sawtooth">Sawtooth</option>
-                                <option value="triangle">Triangle</option>
-                              </select>
-                            </div>
-                            <div className="space-y-1">
-                              <label className="text-[10px] text-zinc-500 uppercase">Volume</label>
-                              <input type="range" min="0" max="1" step="0.05" value={channel.synthConfig.volume} onChange={e => updateChannel(channel.id, { synthConfig: { ...channel.synthConfig, volume: Number(e.target.value) } })} className="w-full" />
-                            </div>
+                          <div className="space-y-1">
+                            <label className="text-[10px] text-zinc-500 uppercase">Oscillator Type</label>
+                            <select 
+                              value={channel.synthConfig.oscillatorType}
+                              onChange={e => updateChannel(channel.id, { synthConfig: { ...channel.synthConfig, oscillatorType: e.target.value as any } })}
+                              className="w-full bg-zinc-950 border border-zinc-800 rounded px-2 py-1 text-xs focus:outline-none focus:border-emerald-500"
+                            >
+                              <option value="sine">Sine</option>
+                              <option value="square">Square</option>
+                              <option value="sawtooth">Sawtooth</option>
+                              <option value="triangle">Triangle</option>
+                            </select>
                           </div>
 
-                          <div className="grid grid-cols-4 gap-2">
-                            <div className="space-y-1">
-                              <label className="text-[10px] text-zinc-500 uppercase">Attack (s)</label>
-                              <input type="number" step="0.01" value={channel.synthConfig.envelope.attack} onChange={e => updateChannel(channel.id, { synthConfig: { ...channel.synthConfig, envelope: { ...channel.synthConfig.envelope, attack: Number(e.target.value) } } })} className="w-full bg-zinc-950 border border-zinc-800 rounded px-2 py-1 text-xs" />
-                            </div>
-                            <div className="space-y-1">
-                              <label className="text-[10px] text-zinc-500 uppercase">Decay (s)</label>
-                              <input type="number" step="0.01" value={channel.synthConfig.envelope.decay} onChange={e => updateChannel(channel.id, { synthConfig: { ...channel.synthConfig, envelope: { ...channel.synthConfig.envelope, decay: Number(e.target.value) } } })} className="w-full bg-zinc-950 border border-zinc-800 rounded px-2 py-1 text-xs" />
-                            </div>
-                            <div className="space-y-1">
-                              <label className="text-[10px] text-zinc-500 uppercase">Sustain</label>
-                              <input type="number" step="0.1" value={channel.synthConfig.envelope.sustain} onChange={e => updateChannel(channel.id, { synthConfig: { ...channel.synthConfig, envelope: { ...channel.synthConfig.envelope, sustain: Number(e.target.value) } } })} className="w-full bg-zinc-950 border border-zinc-800 rounded px-2 py-1 text-xs" />
-                            </div>
-                            <div className="space-y-1">
-                              <label className="text-[10px] text-zinc-500 uppercase">Release (s)</label>
-                              <input type="number" step="0.01" value={channel.synthConfig.envelope.release} onChange={e => updateChannel(channel.id, { synthConfig: { ...channel.synthConfig, envelope: { ...channel.synthConfig.envelope, release: Number(e.target.value) } } })} className="w-full bg-zinc-950 border border-zinc-800 rounded px-2 py-1 text-xs" />
-                            </div>
+                          <div className="pt-2">
+                            <Slider label="Volume" value={channel.synthConfig.volume} min={0} max={1} step={0.01} onChange={v => updateChannel(channel.id, { synthConfig: { ...channel.synthConfig, volume: v } })} />
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-4 pt-2">
+                            <Knob size={40} label="Attack" value={channel.synthConfig.envelope.attack} min={0} max={2} step={0.01} unit="s" onChange={v => updateChannel(channel.id, { synthConfig: { ...channel.synthConfig, envelope: { ...channel.synthConfig.envelope, attack: v } } })} />
+                            <Knob size={40} label="Decay" value={channel.synthConfig.envelope.decay} min={0} max={2} step={0.01} unit="s" onChange={v => updateChannel(channel.id, { synthConfig: { ...channel.synthConfig, envelope: { ...channel.synthConfig.envelope, decay: v } } })} />
+                            <Knob size={40} label="Sustain" value={channel.synthConfig.envelope.sustain} min={0} max={1} step={0.01} onChange={v => updateChannel(channel.id, { synthConfig: { ...channel.synthConfig, envelope: { ...channel.synthConfig.envelope, sustain: v } } })} />
+                            <Knob size={40} label="Release" value={channel.synthConfig.envelope.release} min={0} max={5} step={0.01} unit="s" onChange={v => updateChannel(channel.id, { synthConfig: { ...channel.synthConfig, envelope: { ...channel.synthConfig.envelope, release: v } } })} />
                           </div>
                         </div>
 
@@ -316,80 +341,85 @@ export default function MusicEditor() {
                             </select>
                           </div>
 
-                          <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-1">
-                              <label className="text-[10px] text-zinc-500 uppercase">Cutoff (Hz)</label>
-                              <input type="number" value={channel.synthConfig.filterCutoff} onChange={e => updateChannel(channel.id, { synthConfig: { ...channel.synthConfig, filterCutoff: Number(e.target.value) } })} className="w-full bg-zinc-950 border border-zinc-800 rounded px-2 py-1 text-xs" />
+                          <div className="pt-2 space-y-4">
+                            <Slider label="Cutoff" value={channel.synthConfig.filterCutoff} min={20} max={20000} step={1} unit="Hz" onChange={v => updateChannel(channel.id, { synthConfig: { ...channel.synthConfig, filterCutoff: v } })} />
+                            <Slider label="Resonance" value={channel.synthConfig.filterResonance} min={0} max={20} step={0.1} onChange={v => updateChannel(channel.id, { synthConfig: { ...channel.synthConfig, filterResonance: v } })} />
+                          </div>
+                        </div>
+
+                        {/* Effects Config */}
+                        <div className="space-y-4">
+                          <h4 className="text-xs font-semibold text-zinc-500 uppercase">Effects</h4>
+                          
+                          <div className="space-y-2">
+                            <div className="border-b border-zinc-800/50 pb-2">
+                              <div className="text-[10px] text-zinc-500 uppercase font-semibold mb-1">Delay</div>
+                              <div className="grid grid-cols-3 gap-1">
+                                <Knob size={32} label="Time" value={channel.synthConfig.delay?.time || 0} min={0} max={1} step={0.01} unit="s" onChange={v => updateChannel(channel.id, { synthConfig: { ...channel.synthConfig, delay: { ...(channel.synthConfig.delay || { feedback: 0, mix: 0 }), time: v } } })} />
+                                <Knob size={32} label="F.Back" value={channel.synthConfig.delay?.feedback || 0} min={0} max={0.9} step={0.01} onChange={v => updateChannel(channel.id, { synthConfig: { ...channel.synthConfig, delay: { ...(channel.synthConfig.delay || { time: 0, mix: 0 }), feedback: v } } })} />
+                                <Knob size={32} label="Mix" value={channel.synthConfig.delay?.mix || 0} min={0} max={1} step={0.01} onChange={v => updateChannel(channel.id, { synthConfig: { ...channel.synthConfig, delay: { ...(channel.synthConfig.delay || { time: 0, feedback: 0 }), mix: v } } })} />
+                              </div>
                             </div>
-                            <div className="space-y-1">
-                              <label className="text-[10px] text-zinc-500 uppercase">Resonance (Q)</label>
-                              <input type="number" step="0.1" value={channel.synthConfig.filterResonance} onChange={e => updateChannel(channel.id, { synthConfig: { ...channel.synthConfig, filterResonance: Number(e.target.value) } })} className="w-full bg-zinc-950 border border-zinc-800 rounded px-2 py-1 text-xs" />
+
+                            <div className="border-b border-zinc-800/50 pb-2">
+                              <div className="text-[10px] text-zinc-500 uppercase font-semibold mb-1">Reverb</div>
+                              <div className="grid grid-cols-2 gap-1">
+                                <Knob size={32} label="Decay" value={channel.synthConfig.reverb?.decay || 0} min={0.1} max={10} step={0.1} unit="s" onChange={v => updateChannel(channel.id, { synthConfig: { ...channel.synthConfig, reverb: { ...(channel.synthConfig.reverb || { mix: 0 }), decay: v } } })} />
+                                <Knob size={32} label="Mix" value={channel.synthConfig.reverb?.mix || 0} min={0} max={1} step={0.01} onChange={v => updateChannel(channel.id, { synthConfig: { ...channel.synthConfig, reverb: { ...(channel.synthConfig.reverb || { decay: 2 }), mix: v } } })} />
+                              </div>
+                            </div>
+
+                            <div className="border-b border-zinc-800/50 pb-2">
+                              <div className="text-[10px] text-zinc-500 uppercase font-semibold mb-1">Distortion</div>
+                              <Slider label="Amount" value={channel.synthConfig.distortion?.amount || 0} min={0} max={100} step={1} onChange={v => updateChannel(channel.id, { synthConfig: { ...channel.synthConfig, distortion: { amount: v } } })} />
+                            </div>
+
+                            <div>
+                              <div className="text-[10px] text-zinc-500 uppercase font-semibold mb-1">Flanger</div>
+                              <div className="grid grid-cols-3 gap-1">
+                                <Knob size={32} label="Speed" value={channel.synthConfig.flanger?.speed || 0} min={0.1} max={10} step={0.1} unit="Hz" onChange={v => updateChannel(channel.id, { synthConfig: { ...channel.synthConfig, flanger: { ...(channel.synthConfig.flanger || { depth: 0, mix: 0 }), speed: v } } })} />
+                                <Knob size={32} label="Depth" value={channel.synthConfig.flanger?.depth || 0} min={0} max={1} step={0.01} onChange={v => updateChannel(channel.id, { synthConfig: { ...channel.synthConfig, flanger: { ...(channel.synthConfig.flanger || { speed: 0.1, mix: 0 }), depth: v } } })} />
+                                <Knob size={32} label="Mix" value={channel.synthConfig.flanger?.mix || 0} min={0} max={1} step={0.01} onChange={v => updateChannel(channel.id, { synthConfig: { ...channel.synthConfig, flanger: { ...(channel.synthConfig.flanger || { speed: 0.1, depth: 0 }), mix: v } } })} />
+                              </div>
                             </div>
                           </div>
                         </div>
                       </div>
+                    )}
 
                       {/* Notes */}
                       <div className="space-y-2">
                         <div className="flex justify-between items-center">
-                          <h4 className="text-xs font-semibold text-zinc-500 uppercase">Notes (Beats)</h4>
-                          <button 
-                            onClick={() => {
-                              const lastNote = channel.notes[channel.notes.length - 1];
-                              const newTime = lastNote ? lastNote.time + lastNote.duration : 0;
-                              const newNotes = [...channel.notes, { pitch: 60, time: newTime, duration: 1, velocity: 1 }];
-                              updateChannel(channel.id, { notes: newNotes });
-                            }}
-                            className="text-[10px] bg-zinc-800 hover:bg-zinc-700 px-2 py-1 rounded text-zinc-300"
-                          >
-                            + Add Note
-                          </button>
+                          <h4 className="text-xs font-semibold text-zinc-500 uppercase">{channel.type === 'drum' ? 'Step Sequencer' : 'Piano Roll (Beats)'}</h4>
                         </div>
                         
-                        <div className="space-y-1 max-h-64 overflow-y-auto pr-2">
-                          {channel.notes.map((note, idx) => (
-                            <div key={idx} className="flex gap-2 items-center bg-zinc-950 p-2 rounded border border-zinc-800/50">
-                              <div className="w-6 text-[10px] text-zinc-500 text-center">#{idx+1}</div>
-                              <div className="flex-1 flex gap-2">
-                                <div className="flex-1">
-                                  <label className="text-[8px] text-zinc-600 uppercase block mb-0.5">Pitch (MIDI)</label>
-                                  <input type="number" value={note.pitch} onChange={e => {
-                                    const newNotes = [...channel.notes];
-                                    newNotes[idx].pitch = Number(e.target.value);
-                                    updateChannel(channel.id, { notes: newNotes });
-                                  }} className="w-full bg-zinc-900 border border-zinc-800 rounded px-1.5 py-1 text-xs" />
-                                </div>
-                                <div className="flex-1">
-                                  <label className="text-[8px] text-zinc-600 uppercase block mb-0.5">Start (Beats)</label>
-                                  <input type="number" step="0.25" value={note.time} onChange={e => {
-                                    const newNotes = [...channel.notes];
-                                    newNotes[idx].time = Number(e.target.value);
-                                    updateChannel(channel.id, { notes: newNotes });
-                                  }} className="w-full bg-zinc-900 border border-zinc-800 rounded px-1.5 py-1 text-xs" />
-                                </div>
-                                <div className="flex-1">
-                                  <label className="text-[8px] text-zinc-600 uppercase block mb-0.5">Duration (Beats)</label>
-                                  <input type="number" step="0.25" value={note.duration} onChange={e => {
-                                    const newNotes = [...channel.notes];
-                                    newNotes[idx].duration = Number(e.target.value);
-                                    updateChannel(channel.id, { notes: newNotes });
-                                  }} className="w-full bg-zinc-900 border border-zinc-800 rounded px-1.5 py-1 text-xs" />
-                                </div>
-                              </div>
-                              <button 
-                                onClick={() => {
-                                  const newNotes = channel.notes.filter((_, i) => i !== idx);
-                                  updateChannel(channel.id, { notes: newNotes });
-                                }}
-                                className="p-1 text-zinc-500 hover:text-red-400 mt-3"
-                              >
-                                <Trash2 size={14} />
-                              </button>
-                            </div>
-                          ))}
-                          {channel.notes.length === 0 && (
-                            <div className="text-center text-zinc-600 text-xs py-2">No notes in this channel</div>
+                        <div className="bg-zinc-950 p-2 rounded border border-zinc-800">
+                          {channel.type === 'drum' ? (
+                            <StepSequencer 
+                              notes={channel.notes} 
+                              onChange={notes => updateChannel(channel.id, { notes })} 
+                              duration={Math.max(16, Math.ceil(Math.max(...channel.notes.map(n => n.time + n.duration), 0)) + 4)} 
+                              playheadTime={playheadTime}
+                              pixelsPerUnit={zoom}
+                            />
+                          ) : (
+                            <PianoRoll 
+                              notes={channel.notes} 
+                              onChange={notes => updateChannel(channel.id, { notes })} 
+                              duration={Math.max(16, Math.ceil(Math.max(...channel.notes.map(n => n.time + n.duration), 0)) + 4)} 
+                              minPitch={24}
+                              maxPitch={96}
+                              pixelsPerUnit={zoom} // Dynamic zoom
+                              snapStep={0.25} // Snap to 16th notes (0.25 beats)
+                              playheadTime={playheadTime}
+                              height={300}
+                            />
                           )}
+                        </div>
+                        <div className="text-[10px] text-zinc-500">
+                          {channel.type === 'drum' 
+                            ? 'Click to toggle drum hits.' 
+                            : 'Click to add note. Drag to move. Drag right edge to resize. Right-click to delete.'}
                         </div>
                       </div>
                     </div>
